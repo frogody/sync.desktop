@@ -33,7 +33,8 @@ mac:
   entitlements: entitlements.mac.plist
   entitlementsInherit: entitlements.mac.plist
   # For notarization (requires Apple Developer account)
-  notarize: false
+  notarize:
+    teamId: ${env.APPLE_TEAM_ID}
 
 # macOS DMG configuration
 dmg:
