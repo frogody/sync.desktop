@@ -2,6 +2,15 @@
 
 Desktop companion app for [app.isyncso.com](https://app.isyncso.com) - Activity tracking and AI assistant.
 
+## Download
+
+Download the latest version from [GitHub Releases](https://github.com/frogody/sync.desktop/releases):
+
+- **macOS**: Download the `.dmg` file (Universal - works on Intel and Apple Silicon)
+- **Windows**: Download the `.exe` installer or portable version
+
+The app automatically checks for updates and will prompt you when a new version is available. You can also manually check via the menu bar icon → "Check for Updates..."
+
 ## Features
 
 - **Floating Avatar** - Always-on-top SYNC avatar
@@ -38,6 +47,20 @@ npm run package:mac
 # Build for Windows only
 npm run package:win
 ```
+
+Built installers are output to the `release/` directory.
+
+## Creating a Release
+
+1. Update version in `package.json`
+2. Build for all platforms: `npm run package`
+3. Create a GitHub Release with the new version tag (e.g., `v1.0.1`)
+4. Upload the built artifacts from `release/`:
+   - `SYNC Desktop-{version}-arm64.dmg` (macOS Apple Silicon)
+   - `SYNC Desktop-{version}-x64.dmg` (macOS Intel)
+   - `SYNC Desktop Setup {version}.exe` (Windows installer)
+   - `SYNC Desktop {version}.exe` (Windows portable)
+5. The app's auto-updater will detect the new release
 
 ## Project Structure
 
