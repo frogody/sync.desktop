@@ -1,0 +1,104 @@
+appId: com.isyncso.sync-desktop
+productName: SYNC Desktop
+copyright: Copyright © 2026 iSyncSO
+
+# Output directory for built packages
+directories:
+  output: release
+  buildResources: assets
+
+# Files to include in the build
+files:
+  - dist/**/*
+  - package.json
+
+# Main entry point
+main: dist/main/index.js
+
+# macOS configuration
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: assets/icons/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: entitlements.mac.plist
+  entitlementsInherit: entitlements.mac.plist
+  # For notarization (requires Apple Developer account)
+  notarize: false
+
+# macOS DMG configuration
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 380
+
+# Windows configuration
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: assets/icons/icon.ico
+
+# Windows NSIS installer configuration
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: true
+  shortcutName: SYNC Desktop
+  menuCategory: SYNC
+
+# Linux configuration
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Utility
+  icon: assets/icons
+
+# Auto-update configuration
+publish:
+  provider: github
+  owner: frogody
+  repo: sync.desktop
+  releaseType: release
+
+# Protocols for deep linking
+protocols:
+  - name: SYNC Desktop
+    schemes:
+      - isyncso
+
+# Extra resources to include
+extraResources:
+  - from: assets/
+    to: assets/
+    filter:
+      - "**/*"
+
+# After sign hook for notarization
+afterSign: scripts/notarize.js
