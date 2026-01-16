@@ -5,7 +5,7 @@
  * Provides quick access to SYNC features and settings
  */
 
-import { Tray, Menu, nativeImage, app, shell } from 'electron';
+import { Tray, Menu, nativeImage, app, shell, dialog } from 'electron';
 import path from 'path';
 import {
   getFloatingWidget,
@@ -18,6 +18,7 @@ import { WEB_APP_URL } from '../../shared/constants';
 import { getActivityTracker, setActivityTracker } from '../index';
 import { ActivityTracker } from '../services/activityTracker';
 import { getSettings } from '../store';
+import { checkForUpdates, getUpdateStatus } from '../services/autoUpdater';
 
 // ============================================================================
 // State
@@ -156,9 +157,21 @@ export function updateTrayMenu(): void {
     },
     {
       label: 'Check for Updates...',
-      click: () => {
-        // TODO: Implement auto-updater
-        console.log('[tray] Check for updates');
+      click: async () => {
+        console.log('[tray] Checking for updates...');
+        const result = await checkForUpdates();
+
+        // If no update available, show dialog
+        if (result && !getUpdateStatus().available) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'No Updates Available',
+            message: 'You are running the latest version!',
+            detail: `Current version: ${app.getVersion()}`,
+            buttons: ['OK'],
+          });
+        }
+        // If update is available, the auto-updater will show its own dialog
       },
     },
     { type: 'separator' },
