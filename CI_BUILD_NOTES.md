@@ -297,7 +297,24 @@ The pairing module stores API keys securely. In CI environments:
 
 ### Code Signing (macOS/Windows)
 
-For production releases, code signing is handled separately. See the main README for signing configuration.
+For production releases, code signing is handled in the dedicated release workflow.
+
+#### macOS Release Builds
+
+The repository includes a dedicated workflow (`.github/workflows/build-macos.yml`) that:
+- Builds both `.dmg` and `.pkg` installers for macOS
+- Runs automatically on GitHub Releases
+- Can be manually triggered via workflow_dispatch
+- Produces **unsigned** builds by default (no secrets required)
+- Optionally signs and notarizes when Apple Developer credentials are provided
+
+**To enable signed builds**, add these secrets to the repository:
+- `APPLE_API_KEY_ID` - App Store Connect API Key ID
+- `APPLE_API_KEY_ISSUER_ID` - API Key Issuer ID
+- `APPLE_API_KEY_PRIVATE_BASE64` - Base64-encoded .p8 private key
+- `APPLE_TEAM_ID` - Apple Developer Team ID
+
+See `README.md` for detailed instructions on generating and encoding Apple credentials.
 
 ## Support
 
