@@ -425,9 +425,258 @@ MIT
   <a href="https://app.isyncso.com">app.isyncso.com</a>
 </p>
 
-### macOS Plug & Play Installer (.pkg)
+---
 
-We publish a macOS `.pkg` installer alongside the DMG. The `.pkg` is a standard macOS Installer package — download the `.pkg` from Releases and double‑click it to run the Installer.app GUI; installation completes without requiring Terminal commands.
+## macOS Plug & Play Installer (.pkg) — Installation, Signing & Notarization
 
-Unsigned vs Signed builds
-- By default CI produces an unsigned `.pkg`. To produce signed & notarized installers, add App Store Connect API credentials to GitHub Secrets (APPLE_API_KEY_ID, APPLE_API_KEY_ISSUER_ID, APPLE_API_KEY_PRIVATE_BASE64). See README for details.
+SYNC Desktop provides a macOS `.pkg` installer alongside the DMG for streamlined installation. The `.pkg` is a standard macOS Installer package that integrates with the built-in Installer.app — just download the `.pkg` from [Releases](https://github.com/frogody/sync.desktop/releases) and double-click to run the installation wizard. No Terminal commands required.
+
+### Installation
+
+1. Download the `.pkg` file from the latest release
+2. Double-click to launch macOS Installer.app
+3. Follow the installation wizard
+4. The app will be installed to `/Applications/SYNC Desktop.app`
+
+### Post-Installation Permissions
+
+After installation, you'll need to grant permissions on first launch:
+
+- **Accessibility** (Required): Allows SYNC to track active windows and apps
+  - Navigate to: System Preferences → Privacy & Security → Accessibility
+  - Enable "SYNC Desktop"
+
+- **Screen Recording** (Optional): Enables Deep Context features (OCR, commitment tracking)
+  - Navigate to: System Preferences → Privacy & Security → Screen Recording
+  - Enable "SYNC Desktop"
+
+### Gatekeeper and Code Signing
+
+#### Unsigned Builds (Default)
+
+By default, the CI workflow produces **unsigned** `.pkg` and `.dmg` installers. When you run an unsigned installer, macOS Gatekeeper may display a warning:
+
+> "SYNC Desktop.pkg can't be opened because it is from an unidentified developer."
+
+**Workaround for unsigned builds:**
+1. Right-click (or Control-click) the `.pkg` file
+2. Select "Open" from the context menu
+3. Click "Open" in the confirmation dialog
+
+This is a one-time action. Subsequent updates will open normally if they're signed.
+
+#### Signed & Notarized Builds (Recommended for Distribution)
+
+To create **signed and notarized** installers that install without Gatekeeper warnings, maintainers must configure code signing certificates and App Store Connect API credentials in GitHub repository secrets.
+
+**Benefits of signed builds:**
+- No Gatekeeper warnings for users
+- Faster installation experience
+- Enhanced trust and security
+- Required for distribution outside the Mac App Store
+
+---
+
+## For Maintainers: Enabling Code Signing & Notarization
+
+This section is for repository maintainers who want to enable automatic code signing and notarization in the CI workflow.
+
+### Prerequisites
+
+You need an active **Apple Developer Program** membership ($99/year) to create code signing certificates and use notarization.
+
+### Understanding Apple Certificates
+
+Apple provides different types of certificates for different purposes:
+
+| Certificate Type | Purpose | Used For | Distribution |
+|-----------------|---------|----------|--------------|
+| **Apple Development** | Testing on personal devices during development | Local development, debugging | Cannot be distributed |
+| **Developer ID Application** | Code signing Mac apps for distribution outside the Mac App Store | Signing .app bundles | Direct distribution, notarization required |
+| **Developer ID Installer** | Signing .pkg installers for distribution outside the Mac App Store | Signing .pkg installers | Direct distribution, notarization required |
+| **Mac App Store** | Apps distributed through the Mac App Store | App Store submissions | Mac App Store only |
+
+**For SYNC Desktop distribution, you need:**
+- **Developer ID Application** certificate (for signing the .app bundle)
+- **Developer ID Installer** certificate (for signing the .pkg installer)
+
+⚠️ **Note:** The screenshots you provided show "Apple Development" certificates. These are for local development only and **cannot be used for distribution**. You must create "Developer ID" certificates for public releases.
+
+### Step 1: Create Developer ID Certificates
+
+1. Log in to [Apple Developer](https://developer.apple.com/account/resources/certificates/list)
+2. Click the **+** button to create a new certificate
+3. Select **"Developer ID Application"** → Continue
+4. Follow the instructions to create a Certificate Signing Request (CSR) in Keychain Access
+5. Upload the CSR and download the certificate
+6. Repeat the process for **"Developer ID Installer"**
+7. Double-click each downloaded certificate to install it in your Keychain
+
+### Step 2: Export Certificates to .p12
+
+You need to export your certificates with their private keys as a `.p12` file:
+
+1. Open **Keychain Access** on macOS
+2. In the sidebar, select **login** keychain (or wherever you installed the certificates)
+3. Find your **"Developer ID Application"** certificate
+4. Expand it to reveal the private key underneath
+5. Right-click on the certificate (not the private key) → **Export**
+6. Choose format: **Personal Information Exchange (.p12)**
+7. Save as `codesign.p12` (or any name)
+8. Set a strong password (you'll need this for the P12_PASSWORD secret)
+
+**Important:** The .p12 file contains your private key. Keep it secure and never commit it to source control.
+
+### Step 3: Base64-Encode the .p12 File
+
+GitHub Secrets accept text values, so we need to encode the binary .p12 file as base64:
+
+```bash
+# Encode the .p12 file and copy to clipboard
+openssl base64 -in /path/to/codesign.p12 -A | pbcopy
+
+# The base64 string is now in your clipboard
+```
+
+### Step 4: Create App Store Connect API Key
+
+Notarization requires an App Store Connect API key:
+
+1. Log in to [App Store Connect](https://appstoreconnect.apple.com/access/api)
+2. Click **Keys** under the "Team Keys" section (or "Individual Keys")
+3. Click the **+** button to generate a new key
+4. Set the name (e.g., "SYNC Desktop CI") and role: **"App Manager"** or **"Developer"**
+5. Click **Generate**
+6. **Download the .p8 file** (you can only download it once - store it safely!)
+7. Note the **Key ID** (10-character alphanumeric, e.g., "ABC123DEFG")
+8. Note the **Issuer ID** (UUID format, shown at the top of the page)
+
+Now base64-encode the .p8 file:
+
+```bash
+# Encode the .p8 file and copy to clipboard
+openssl base64 -in /path/to/AuthKey_ABC123DEFG.p8 -A | pbcopy
+```
+
+### Step 5: Add Secrets to GitHub Repository
+
+Use the GitHub CLI (`gh`) or the GitHub web interface to add the following secrets:
+
+#### Required Secrets for Code Signing:
+
+```bash
+# Code signing certificate (base64-encoded .p12 file from Step 3)
+gh secret set APPLE_P12_BASE64
+
+# Password for the .p12 file (set during export in Step 2)
+gh secret set P12_PASSWORD
+
+# Temporary keychain password (choose any secure random string)
+gh secret set KEYCHAIN_PASSWORD
+
+# Certificate identity name (get from Keychain Access, e.g., "Developer ID Application: Your Name (TEAM_ID)")
+gh secret set MAC_SIGNING_IDENTITY
+```
+
+**To find your certificate identity name:**
+```bash
+security find-identity -v -p codesigning
+```
+Look for the "Developer ID Application" line and copy the full quoted name.
+
+#### Required Secrets for Notarization:
+
+```bash
+# App Store Connect API key (base64-encoded .p8 file from Step 4)
+gh secret set APPLE_API_KEY_PRIVATE_BASE64
+
+# Key ID from App Store Connect (e.g., "ABC123DEFG")
+gh secret set APPLE_API_KEY_ID
+
+# Issuer ID from App Store Connect (UUID format)
+gh secret set APPLE_API_KEY_ISSUER_ID
+
+# (Optional) Your Apple Developer Team ID (10-character alphanumeric)
+gh secret set APPLE_TEAM_ID
+```
+
+#### Optional Debug Secret:
+
+```bash
+# Set to 'true' to enable debug output showing available signing identities
+# Only enable when troubleshooting - may leak identity names in logs
+gh secret set DEBUG_CODESIGN --body "false"
+```
+
+### Step 6: Trigger a Build
+
+Once all secrets are configured:
+
+1. Go to **Actions** tab in the GitHub repository
+2. Select the **"Build & Package macOS"** workflow
+3. Click **"Run workflow"** → **"Run workflow"**
+4. The workflow will:
+   - Import your code signing certificate
+   - Build and sign the app
+   - Create .dmg and .pkg installers
+   - Notarize the installers with Apple
+   - Upload artifacts (or attach to GitHub Release if triggered by a release event)
+
+For release builds, create a new release in GitHub and the workflow will automatically run and attach the signed installers.
+
+### Verification
+
+After a successful build:
+1. Download the `.pkg` installer
+2. Double-click to run - it should open without Gatekeeper warnings
+3. The app should show as "verified" when checking code signature:
+   ```bash
+   codesign -vv /Applications/SYNC\ Desktop.app
+   spctl -a -vv /Applications/SYNC\ Desktop.app
+   ```
+
+### Troubleshooting
+
+**"security: SecKeychainItemImport: The passphrase is incorrect"**
+- Verify P12_PASSWORD matches the password you set when exporting the certificate
+
+**"No identity found"**
+- Run `security find-identity -v -p codesigning` locally to verify the certificate is installed
+- Ensure APPLE_P12_BASE64 contains the full base64-encoded .p12 file
+- Check that MAC_SIGNING_IDENTITY exactly matches the certificate name in Keychain
+
+**"Unable to notarize app"**
+- Verify APPLE_API_KEY_ID matches the Key ID from App Store Connect
+- Ensure APPLE_API_KEY_ISSUER_ID is the correct Issuer ID (UUID format)
+- Check that the .p8 file was encoded correctly
+
+**Build succeeds but no .pkg file created**
+- Ensure `pkg` is listed in the `mac.target` array in `package.json` or `electron-builder.yml`
+
+### Security Reminders
+
+⚠️ **NEVER commit the following to source control:**
+- `.p12` certificate files
+- `.p8` API key files  
+- Private keys of any kind
+- Passwords or passphrases
+
+These values should **only** exist as GitHub Secrets or in your local secure storage (Keychain, password manager, etc.).
+
+---
+
+### Summary of Required Secrets
+
+| Secret Name | Description | How to Obtain |
+|-------------|-------------|---------------|
+| `APPLE_P12_BASE64` | Base64-encoded Developer ID Application certificate + private key | Export from Keychain Access as .p12, then `openssl base64 -in cert.p12 -A` |
+| `P12_PASSWORD` | Password for the .p12 file | Set when exporting from Keychain Access |
+| `KEYCHAIN_PASSWORD` | Temporary password for CI build keychain | Choose any secure random string |
+| `MAC_SIGNING_IDENTITY` | Certificate common name | Run `security find-identity -v -p codesigning` and copy the quoted name |
+| `APPLE_API_KEY_PRIVATE_BASE64` | Base64-encoded App Store Connect API private key | Download .p8 from App Store Connect, then `openssl base64 -in AuthKey_XXX.p8 -A` |
+| `APPLE_API_KEY_ID` | App Store Connect API Key ID | From App Store Connect API Keys page |
+| `APPLE_API_KEY_ISSUER_ID` | App Store Connect Issuer ID | From App Store Connect API Keys page (UUID at top) |
+| `APPLE_TEAM_ID` | Apple Developer Team ID (optional) | From Apple Developer account |
+| `DEBUG_CODESIGN` | Set to `'true'` to enable debug output | Set manually when troubleshooting |
+
+---

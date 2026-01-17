@@ -28,7 +28,68 @@ jobs:
       - name: Build app
         run: npm run build
 
-      - name: Prepare Apple API key (optional)
+      # ============================================================================
+      # CODE SIGNING CERTIFICATE IMPORT (optional)
+      # ============================================================================
+      # Required secrets for code signing:
+      #   - APPLE_P12_BASE64: Base64-encoded .p12 file containing Developer ID Application
+      #     certificate + private key. Export from Keychain Access, then encode with:
+      #     openssl base64 -in /path/to/certificate.p12 -A | pbcopy
+      #   - P12_PASSWORD: Password used when exporting the .p12 certificate
+      #   - KEYCHAIN_PASSWORD: Temporary password for the build keychain (any secure value)
+      #   - MAC_SIGNING_IDENTITY: Certificate common name (e.g., "Developer ID Application: Your Name (TEAM_ID)")
+      #
+      # ⚠️  NEVER commit private keys or certificates to the repository!
+      # ============================================================================
+      - name: Import code signing certificate (optional)
+        if: ${{ secrets.APPLE_P12_BASE64 != '' }}
+        run: |
+          # Decode the base64-encoded P12 certificate to a temporary file
+          echo "$APPLE_P12_BASE64" | base64 --decode > /tmp/codesign.p12
+          chmod 600 /tmp/codesign.p12
+          
+          # Create a temporary keychain for code signing
+          KEYCHAIN="$HOME/Library/Keychains/build.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          
+          # Import the P12 certificate into the temporary keychain
+          # Grant access to codesign, productbuild, and security tools
+          security import /tmp/codesign.p12 \
+            -k "$KEYCHAIN" \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productbuild \
+            -T /usr/bin/security
+          
+          # Set the keychain as the default and unlock it
+          security list-keychains -d user -s "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          
+          # Allow tools to use the keychain without user interaction
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          
+          # Clean up the temporary P12 file
+          rm -f /tmp/codesign.p12
+        env:
+          APPLE_P12_BASE64: ${{ secrets.APPLE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      # ============================================================================
+      # NOTARIZATION API KEY SETUP (optional)
+      # ============================================================================
+      # Required secrets for notarization:
+      #   - APPLE_API_KEY_PRIVATE_BASE64: Base64-encoded App Store Connect API private key (.p8 file)
+      #     Download from https://appstoreconnect.apple.com/access/api, then encode with:
+      #     openssl base64 -in /path/to/AuthKey_XXXXXXXXXX.p8 -A | pbcopy
+      #   - APPLE_API_KEY_ID: The key ID from App Store Connect (e.g., "XXXXXXXXXX")
+      #   - APPLE_API_KEY_ISSUER_ID: The issuer ID from App Store Connect API Keys page
+      #   - APPLE_TEAM_ID: (optional) Your Apple Developer Team ID
+      #
+      # The .p8 file is reconstructed in /tmp/ for electron-builder to use during notarization.
+      # ============================================================================
+      - name: Prepare Apple API key for notarization (optional)
         if: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 != '' }}
         run: |
           echo "Decoding Apple API private key to /tmp/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
@@ -37,6 +98,28 @@ jobs:
         env:
           APPLE_API_KEY_PRIVATE_BASE64: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 }}
 
+      # ============================================================================
+      # DEBUG: List available signing identities (optional)
+      # ============================================================================
+      # Required secret:
+      #   - DEBUG_CODESIGN: Set to 'true' to enable this debug step
+      #
+      # This step lists all available code signing identities in the keychain.
+      # Only enable this when troubleshooting signing issues to avoid leaking identity names.
+      # ============================================================================
+      - name: Debug - List signing identities
+        if: ${{ secrets.DEBUG_CODESIGN == 'true' }}
+        run: security find-identity -v -p codesigning
+
+      # ============================================================================
+      # PACKAGE THE APPLICATION
+      # ============================================================================
+      # This step runs electron-builder to create .dmg, .pkg, and .zip artifacts.
+      # Environment variables:
+      #   - CSC_NAME: Code signing identity (set from MAC_SIGNING_IDENTITY secret)
+      #   - APPLE_API_KEY_ID, APPLE_API_KEY_ISSUER_ID: For notarization
+      #   - APPLE_API_KEY_PATH: Path to the reconstructed .p8 file
+      # ============================================================================
       - name: Package mac (dmg + pkg)
         run: npm run package:mac
         env:
@@ -48,7 +131,27 @@ jobs:
       - name: List release output
         run: ls -la release || true
 
-      - name: Bundle artifacts
+      # ============================================================================
+      # UPLOAD ARTIFACTS TO GITHUB RELEASE
+      # ============================================================================
+      # For release events: Upload individual .dmg and .pkg files as separate assets.
+      # For workflow_dispatch: Bundle all artifacts into a .zip and upload as workflow artifact.
+      # ============================================================================
+      - name: Upload individual assets to GitHub Release
+        if: ${{ github.event_name == 'release' }}
+        run: |
+          # Find all .dmg and .pkg files in the release directory
+          for file in release/*.dmg release/*.pkg; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file to release..."
+              gh release upload "${{ github.event.release.tag_name }}" "$file" --clobber
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Bundle and upload workflow artifact (for manual runs)
+        if: ${{ github.event_name != 'release' }}
         run: |
           mkdir -p artifacts
           find release -type f \( -name "*.dmg" -o -name "*.pkg" \) -exec cp {} artifacts/ \; || true
@@ -58,15 +161,6 @@ jobs:
           else
             echo "No artifacts found"
           fi
-
-      - name: Upload to GitHub Release (when triggered by a release)
-        if: ${{ github.event_name == 'release' }}
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: mac-artifacts-${{ github.sha }}.zip
-          asset_name: SYNC-Desktop-mac-artifacts-${{ github.sha }}.zip
-          asset_content_type: application/zip
 
       - name: Upload workflow artifact (for manual runs)
         if: ${{ github.event_name != 'release' }}
