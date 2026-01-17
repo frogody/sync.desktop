@@ -89,4 +89,25 @@ export function setUser(user: User | null): void {
   }
 }
 
+// ============================================================================
+// API Keys
+// ============================================================================
+
+export function getTogetherApiKey(): string | undefined {
+  // Check environment variable first
+  if (process.env.TOGETHER_API_KEY) {
+    return process.env.TOGETHER_API_KEY;
+  }
+  // Fall back to stored key
+  return store.get('togetherApiKey') as string | undefined;
+}
+
+export function setTogetherApiKey(key: string | null): void {
+  if (key) {
+    store.set('togetherApiKey', key);
+  } else {
+    store.delete('togetherApiKey');
+  }
+}
+
 export { store };

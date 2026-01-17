@@ -54,6 +54,14 @@ export const IPC_CHANNELS = {
   // Journal
   JOURNAL_GET_TODAY: 'journal:get-today',
   JOURNAL_GET_HISTORY: 'journal:get-history',
+
+  // Deep Context
+  DEEP_CONTEXT_STATUS: 'deep-context:status',
+  DEEP_CONTEXT_GET_COMMITMENTS: 'deep-context:get-commitments',
+  DEEP_CONTEXT_GET_PENDING_FOLLOWUPS: 'deep-context:get-pending-followups',
+  DEEP_CONTEXT_DISMISS_COMMITMENT: 'deep-context:dismiss-commitment',
+  DEEP_CONTEXT_COMPLETE_COMMITMENT: 'deep-context:complete-commitment',
+  DEEP_CONTEXT_GET_ENRICHED_CONTEXT: 'deep-context:get-enriched-context',
 } as const;
 
 export type IPCChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

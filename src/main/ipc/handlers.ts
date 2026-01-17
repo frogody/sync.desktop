@@ -21,6 +21,7 @@ import {
   getSummaryService,
   getJournalService,
   getCloudSyncService,
+  getDeepContextManager,
 } from '../index';
 import { getRecentActivity, getTodayJournal, getJournalHistory } from '../db/queries';
 import {
@@ -411,6 +412,99 @@ export function setupIpcHandlers(
       }
     }
     return { success: true };
+  });
+
+  // ============================================================================
+  // Deep Context
+  // ============================================================================
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_STATUS, () => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        return {
+          success: true,
+          data: {
+            isRunning: deepContext.isRunning(),
+            stats: deepContext.getStats(),
+          },
+        };
+      }
+      return {
+        success: true,
+        data: {
+          isRunning: false,
+          stats: null,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_GET_COMMITMENTS, (_event, status?: string) => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        const commitments = deepContext.getCommitments(status as 'pending' | 'completed' | 'expired' | 'dismissed' | undefined);
+        return { success: true, data: commitments };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_GET_PENDING_FOLLOWUPS, () => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        const followUps = deepContext.getPendingFollowUps();
+        return { success: true, data: followUps };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_DISMISS_COMMITMENT, (_event, commitmentId: number) => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        deepContext.dismissCommitment(commitmentId);
+        return { success: true };
+      }
+      return { success: false, error: 'Deep context manager not available' };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_COMPLETE_COMMITMENT, (_event, commitmentId: number) => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        deepContext.completeCommitment(commitmentId);
+        return { success: true };
+      }
+      return { success: false, error: 'Deep context manager not available' };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_GET_ENRICHED_CONTEXT, () => {
+    try {
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        const context = deepContext.getEnrichedContextForSync();
+        return { success: true, data: context };
+      }
+      return { success: true, data: null };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
   });
 
   console.log('[ipc] Handlers registered');

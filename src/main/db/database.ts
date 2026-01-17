@@ -208,6 +208,111 @@ function runMigrations(): void {
         CREATE INDEX IF NOT EXISTS idx_journal_synced ON daily_journals(synced);
       `,
     },
+    {
+      name: '004_deep_context_tables',
+      sql: `
+        -- Screen captures with OCR results
+        CREATE TABLE IF NOT EXISTS screen_captures (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp INTEGER NOT NULL,
+          app_name TEXT NOT NULL,
+          window_title TEXT,
+          text_content TEXT,
+          analysis TEXT, -- JSON: ScreenAnalysis
+          image_hash TEXT, -- For deduplication
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_captures_timestamp ON screen_captures(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_captures_app ON screen_captures(app_name);
+        CREATE INDEX IF NOT EXISTS idx_captures_hash ON screen_captures(image_hash);
+
+        -- Commitments/promises extracted from screen content
+        CREATE TABLE IF NOT EXISTS commitments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          text TEXT NOT NULL,
+          type TEXT NOT NULL, -- 'send_email', 'create_event', 'send_file', 'follow_up', 'make_call', 'other'
+          recipient TEXT,
+          deadline INTEGER, -- timestamp
+          detected_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          status TEXT DEFAULT 'pending', -- 'pending', 'completed', 'expired', 'dismissed'
+          source_capture_id INTEGER REFERENCES screen_captures(id),
+          context TEXT, -- JSON with additional details
+          confidence REAL DEFAULT 0.5,
+          synced INTEGER DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_commitments_status ON commitments(status);
+        CREATE INDEX IF NOT EXISTS idx_commitments_deadline ON commitments(deadline);
+        CREATE INDEX IF NOT EXISTS idx_commitments_detected ON commitments(detected_at);
+
+        -- Action items detected from screen content
+        CREATE TABLE IF NOT EXISTS action_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          text TEXT NOT NULL,
+          priority TEXT DEFAULT 'medium', -- 'high', 'medium', 'low'
+          source TEXT, -- 'email', 'document', 'chat', 'calendar', 'browser'
+          detected_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          status TEXT DEFAULT 'pending',
+          source_capture_id INTEGER REFERENCES screen_captures(id),
+          context TEXT -- JSON
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_actions_status ON action_items(status);
+        CREATE INDEX IF NOT EXISTS idx_actions_priority ON action_items(priority);
+
+        -- Completed actions for cross-reference matching
+        CREATE TABLE IF NOT EXISTS completed_actions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action_type TEXT NOT NULL, -- 'sent_email', 'created_event', 'sent_file', 'made_call'
+          details TEXT, -- JSON: recipient, subject, etc.
+          timestamp INTEGER NOT NULL,
+          app_name TEXT,
+          matched_commitment_id INTEGER REFERENCES commitments(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_completed_timestamp ON completed_actions(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_completed_type ON completed_actions(action_type);
+
+        -- Email context tracking
+        CREATE TABLE IF NOT EXISTS email_contexts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp INTEGER NOT NULL,
+          app_name TEXT NOT NULL,
+          action TEXT NOT NULL, -- 'composing', 'reading', 'sending', 'sent'
+          recipient TEXT,
+          subject TEXT,
+          body_preview TEXT,
+          has_attachment INTEGER DEFAULT 0,
+          source_capture_id INTEGER REFERENCES screen_captures(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_email_timestamp ON email_contexts(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_email_action ON email_contexts(action);
+
+        -- Calendar event tracking
+        CREATE TABLE IF NOT EXISTS calendar_contexts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp INTEGER NOT NULL,
+          app_name TEXT NOT NULL,
+          action TEXT NOT NULL, -- 'viewing', 'creating', 'editing', 'created'
+          event_title TEXT,
+          event_time TEXT,
+          participants TEXT, -- JSON array
+          source_capture_id INTEGER REFERENCES screen_captures(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_calendar_timestamp ON calendar_contexts(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_calendar_action ON calendar_contexts(action);
+
+        -- Deep context settings
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('deep_context_enabled', 'true');
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('capture_interval_ms', '30000');
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('last_commitment_check', NULL);
+      `,
+    },
   ];
 
   // Apply unapplied migrations

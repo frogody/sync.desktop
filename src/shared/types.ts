@@ -224,3 +224,152 @@ export interface VoiceSyncResponse {
     tts: number;
   };
 }
+
+// ============================================================================
+// Deep Context Types
+// ============================================================================
+
+export type CommitmentType = 'send_email' | 'create_event' | 'send_file' | 'follow_up' | 'make_call' | 'other';
+export type CommitmentStatus = 'pending' | 'completed' | 'expired' | 'dismissed';
+export type ActionPriority = 'high' | 'medium' | 'low';
+export type ActionSource = 'email' | 'document' | 'chat' | 'calendar' | 'browser' | 'other';
+export type ActivityType = 'composing_email' | 'reading_email' | 'editing_doc' | 'browsing' | 'coding' | 'meeting' | 'calendar' | 'chatting' | 'other';
+
+export interface ScreenCapture {
+  id?: number;
+  timestamp: number;
+  appName: string;
+  windowTitle: string;
+  textContent: string | null;
+  analysis: ScreenAnalysis | null;
+  imageHash: string | null;
+  createdAt?: string;
+}
+
+export interface Commitment {
+  id?: number;
+  text: string;
+  type: CommitmentType;
+  recipient?: string;
+  deadline?: number;
+  detectedAt: number;
+  completedAt?: number;
+  status: CommitmentStatus;
+  sourceCaptureId?: number;
+  context?: Record<string, unknown>;
+  confidence: number;
+  synced: boolean;
+}
+
+export interface ActionItem {
+  id?: number;
+  text: string;
+  priority: ActionPriority;
+  source: ActionSource;
+  detectedAt: number;
+  completedAt?: number;
+  status: 'pending' | 'completed' | 'dismissed';
+  sourceCaptureId?: number;
+  context?: Record<string, unknown>;
+}
+
+export interface CompletedAction {
+  id?: number;
+  actionType: string;
+  details: Record<string, unknown>;
+  timestamp: number;
+  appName: string;
+  matchedCommitmentId?: number;
+}
+
+export interface EmailContext {
+  id?: number;
+  timestamp: number;
+  appName: string;
+  action: 'composing' | 'reading' | 'sending' | 'sent';
+  recipient?: string;
+  subject?: string;
+  bodyPreview?: string;
+  hasAttachment: boolean;
+  sourceCaptureId?: number;
+}
+
+export interface CalendarContext {
+  id?: number;
+  timestamp: number;
+  appName: string;
+  action: 'viewing' | 'creating' | 'editing' | 'created';
+  eventTitle?: string;
+  eventTime?: string;
+  participants?: string[];
+  sourceCaptureId?: number;
+}
+
+export interface ScreenAnalysis {
+  timestamp: number;
+  appContext: {
+    app: string;
+    activity: ActivityType;
+  };
+  commitments: {
+    text: string;
+    type: CommitmentType;
+    recipient?: string;
+    deadline?: string;
+    confidence: number;
+  }[];
+  actionItems: {
+    text: string;
+    priority: ActionPriority;
+    source: ActionSource;
+  }[];
+  emailContext?: {
+    composing: boolean;
+    to: string[];
+    subject: string;
+    bodyPreview: string;
+    attachments: string[];
+  };
+  calendarContext?: {
+    viewing: boolean;
+    creating: boolean;
+    eventTitle?: string;
+    eventTime?: string;
+    participants?: string[];
+  };
+}
+
+export interface OCRResult {
+  text: string;
+  confidence: number;
+  regions?: {
+    text: string;
+    bounds: { x: number; y: number; width: number; height: number };
+    type?: 'heading' | 'paragraph' | 'button' | 'input' | 'link';
+  }[];
+}
+
+export interface PendingFollowUp {
+  commitment: Commitment;
+  suggestedAction: string;
+  context: string;
+  urgency: 'low' | 'medium' | 'high';
+}
+
+export interface DeepContextSettings {
+  enabled: boolean;
+  captureIntervalMs: number;
+  excludedApps: string[];
+  ocrEnabled: boolean;
+  semanticAnalysisEnabled: boolean;
+  commitmentTrackingEnabled: boolean;
+}
+
+export const DEFAULT_DEEP_CONTEXT_SETTINGS: DeepContextSettings = {
+  enabled: true,
+  captureIntervalMs: 30000,
+  excludedApps: [],
+  ocrEnabled: true,
+  semanticAnalysisEnabled: true,
+  commitmentTrackingEnabled: true,
+};

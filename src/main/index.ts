@@ -20,6 +20,7 @@ import { SummaryService } from './services/summaryService';
 import { JournalService } from './services/journalService';
 import { Scheduler } from './services/scheduler';
 import { CloudSyncService } from './services/cloudSyncService';
+import { DeepContextManager } from './services/deepContextManager';
 import { checkAndRequestPermissions, checkPermissions } from './services/permissions';
 import { initAutoUpdater } from './services/autoUpdater';
 import { initDatabase } from './db/database';
@@ -46,6 +47,7 @@ let summaryService: SummaryService | null = null;
 let journalService: JournalService | null = null;
 let scheduler: Scheduler | null = null;
 let cloudSyncService: CloudSyncService | null = null;
+let deepContextManager: DeepContextManager | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // ============================================================================
@@ -233,6 +235,26 @@ app.whenReady().then(async () => {
       contextManager.start();
 
       console.log('[main] Activity tracking started');
+
+      // Start deep context manager (screen capture, OCR, semantic analysis)
+      // Requires screen capture permission on macOS
+      if (permissions.screenCapture || process.platform !== 'darwin') {
+        deepContextManager = new DeepContextManager();
+        deepContextManager.start();
+
+        // Log deep context events
+        deepContextManager.on('event', (event) => {
+          if (event.type === 'commitment_detected') {
+            console.log('[main] Commitment detected:', event.data);
+          } else if (event.type === 'follow_up_needed') {
+            console.log('[main] Follow-up needed:', event.data);
+          }
+        });
+
+        console.log('[main] Deep context manager started');
+      } else {
+        console.log('[main] Deep context disabled - screen capture permission not granted');
+      }
     } else {
       console.log('[main] Activity tracking disabled - accessibility permission not granted');
     }
@@ -277,6 +299,11 @@ app.on('before-quit', () => {
   // Stop scheduler first
   if (scheduler) {
     scheduler.stop();
+  }
+
+  // Stop deep context manager
+  if (deepContextManager) {
+    deepContextManager.stop();
   }
 
   // Stop context manager
@@ -326,4 +353,8 @@ export function getScheduler() {
 
 export function getCloudSyncService() {
   return cloudSyncService;
+}
+
+export function getDeepContextManager() {
+  return deepContextManager;
 }
