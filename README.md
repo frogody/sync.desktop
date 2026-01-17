@@ -111,15 +111,30 @@ Get the latest version from [GitHub Releases](https://github.com/frogody/sync.de
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon & Intel) | `.dmg` file |
+| macOS (Apple Silicon & Intel) | `.dmg` file or `.pkg` installer |
 | Windows | `.exe` installer |
 
 ### macOS Installation
+
+#### Option 1: DMG File (Recommended)
 1. Download the `.dmg` file
 2. Open the DMG and drag SYNC Desktop to Applications
 3. On first launch, right-click the app and select "Open" (required for non-App Store apps)
 4. Grant Accessibility permission when prompted (required for activity tracking)
 5. Optionally grant Screen Recording permission for Deep Context features
+
+#### Option 2: PKG Installer (Plug & Play)
+1. Download the `.pkg` file
+2. Double-click to launch the macOS Installer
+3. Follow the installation wizard to install SYNC Desktop to `/Applications`
+4. On first launch, you may need to allow the app to run (see Gatekeeper notes below)
+5. Grant Accessibility permission when prompted (required for activity tracking)
+6. Optionally grant Screen Recording permission for Deep Context features
+
+**Gatekeeper & Signing Notes:**
+
+- **Unsigned builds**: If you download an unsigned `.pkg` (built without Apple signing credentials), macOS Gatekeeper may show security warnings. You'll need to right-click the app in Applications and select "Open" to bypass Gatekeeper on first launch.
+- **Signed & Notarized builds**: For a frictionless installation experience, the repository can be configured with Apple signing credentials to produce signed and notarized installers that macOS trusts immediately. See the "Code Signing & Notarization" section below for setup instructions.
 
 ### Auto-Updates
 SYNC Desktop automatically checks for updates and will prompt you when a new version is available.
@@ -282,6 +297,59 @@ npm run package:win
 ```
 
 Built installers are output to the `release/` directory.
+
+### Code Signing & Notarization (Optional)
+
+For a fully trusted macOS installation experience without Gatekeeper warnings, you can configure the repository with Apple Developer credentials to automatically sign and notarize the macOS builds.
+
+#### Prerequisites
+
+1. An active Apple Developer account
+2. App Store Connect API key (`.p8` file)
+3. Developer ID Application certificate
+
+#### Setting Up App Store Connect API Key
+
+1. Go to [App Store Connect](https://appstoreconnect.apple.com/access/api)
+2. Create a new API key with "Developer" access
+3. Download the `.p8` file (e.g., `AuthKey_ABCD1234.p8`)
+4. Note the **Key ID** (e.g., `ABCD1234`) and **Issuer ID** (e.g., `12345678-1234-1234-1234-123456789012`)
+
+#### Setting Up GitHub Secrets
+
+Add the following secrets to your GitHub repository (Settings → Secrets and variables → Actions):
+
+| Secret Name | Description | How to Get It |
+|-------------|-------------|---------------|
+| `APPLE_API_KEY_ID` | App Store Connect API Key ID | The Key ID from your `.p8` file (e.g., `ABCD1234`) |
+| `APPLE_API_KEY_ISSUER_ID` | App Store Connect Issuer ID | Found on the App Store Connect API keys page |
+| `APPLE_API_KEY_PRIVATE_BASE64` | Base64-encoded `.p8` file | Run: `base64 -i AuthKey_ABCD1234.p8 \| pbcopy` (macOS) |
+| `APPLE_TEAM_ID` | Your Apple Developer Team ID | Found in Apple Developer account settings |
+| `MAC_CERT_P12_BASE64` | Base64-encoded .p12 certificate | Export from Keychain Access, then `base64 -i cert.p12 \| pbcopy` |
+| `MAC_CERT_PASSWORD` | Password for .p12 certificate | The password you set when exporting |
+| `APPLE_ID` | Your Apple ID email | For legacy notarization (optional) |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password | Generate at appleid.apple.com (optional) |
+
+**To encode your .p8 file on macOS:**
+```bash
+base64 -i AuthKey_ABCD1234.p8 | pbcopy
+```
+
+**To encode your .p12 certificate:**
+```bash
+# Export your Developer ID Application certificate from Keychain Access as .p12
+# Then encode it:
+base64 -i certificate.p12 | pbcopy
+```
+
+Once these secrets are configured, the GitHub Actions workflow will automatically sign and notarize all macOS builds (both `.dmg` and `.pkg`).
+
+#### Unsigned Builds (Default)
+
+If you don't configure the signing secrets, the workflow will still build unsigned `.dmg` and `.pkg` files. These work fine but will show Gatekeeper warnings to end users. This is perfect for:
+- Internal testing
+- Development builds
+- Open source projects without Apple Developer accounts
 
 ### Native Module Requirements
 
