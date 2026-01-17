@@ -424,3 +424,10 @@ MIT
   <br>
   <a href="https://app.isyncso.com">app.isyncso.com</a>
 </p>
+
+### macOS Plug & Play Installer (.pkg)
+
+We publish a macOS `.pkg` installer alongside the DMG. The `.pkg` is a standard macOS Installer package — download the `.pkg` from Releases and double‑click it to run the Installer.app GUI; installation completes without requiring Terminal commands.
+
+Unsigned vs Signed builds
+- By default CI produces an unsigned `.pkg`. To produce signed & notarized installers, add App Store Connect API credentials to GitHub Secrets (APPLE_API_KEY_ID, APPLE_API_KEY_ISSUER_ID, APPLE_API_KEY_PRIVATE_BASE64). See README for details.

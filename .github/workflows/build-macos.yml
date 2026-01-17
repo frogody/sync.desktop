@@ -1,0 +1,76 @@
+name: Build & Package macOS
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-macos:
+    name: Build macOS artifacts
+    runs-on: macos-latest
+    env:
+      NODE_ENV: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Prepare Apple API key (optional)
+        if: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 != '' }}
+        run: |
+          echo "Decoding Apple API private key to /tmp/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+          echo "$APPLE_API_KEY_PRIVATE_BASE64" | base64 --decode > /tmp/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          chmod 600 /tmp/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+        env:
+          APPLE_API_KEY_PRIVATE_BASE64: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 }}
+
+      - name: Package mac (dmg + pkg)
+        run: npm run package:mac
+        env:
+          CSC_NAME: ${{ secrets.MAC_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_ISSUER_ID: ${{ secrets.APPLE_API_KEY_ISSUER_ID }}
+          APPLE_API_KEY_PATH: /tmp/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      - name: List release output
+        run: ls -la release || true
+
+      - name: Bundle artifacts
+        run: |
+          mkdir -p artifacts
+          find release -type f \( -name "*.dmg" -o -name "*.pkg" \) -exec cp {} artifacts/ \; || true
+          cd artifacts || exit 0
+          if [ "$(ls -A)" ]; then
+            zip -r ../mac-artifacts-${{ github.sha }}.zip ./* || true
+          else
+            echo "No artifacts found"
+          fi
+
+      - name: Upload to GitHub Release (when triggered by a release)
+        if: ${{ github.event_name == 'release' }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: mac-artifacts-${{ github.sha }}.zip
+          asset_name: SYNC-Desktop-mac-artifacts-${{ github.sha }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload workflow artifact (for manual runs)
+        if: ${{ github.event_name != 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-artifacts
+          path: mac-artifacts-${{ github.sha }}.zip
