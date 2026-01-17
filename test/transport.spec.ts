@@ -5,6 +5,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import zlib from 'zlib';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 // Mock node-fetch
 vi.mock('node-fetch', () => ({
@@ -82,7 +83,7 @@ describe('Transport', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Create a unique database path for each test
-    testQueuePath = path.join('/tmp', `test-queue-${Date.now()}-${Math.random()}.db`);
+    testQueuePath = path.join(os.tmpdir(), `test-queue-${Date.now()}-${Math.random()}.db`);
     
     // Use a file-based db for transport tests so we can test persistence
     transport = new Transport({
@@ -257,7 +258,7 @@ describe('Transport', () => {
 
   it('should use configurable initialBackoffMs', async () => {
     // Create transport with custom backoff
-    const customDbPath = path.join('/tmp', `test-queue-backoff-${Date.now()}-${Math.random()}.db`);
+    const customDbPath = path.join(os.tmpdir(), `test-queue-backoff-${Date.now()}-${Math.random()}.db`);
     const customTransport = new Transport({
       endpoint: 'https://api.test.com',
       deviceId: 'test-device-456',
