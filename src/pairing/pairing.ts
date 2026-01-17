@@ -2,7 +2,7 @@ import Store from 'electron-store';
 
 const SERVICE_NAME = 'frogody-sync-desktop';
 const ACCOUNT_NAME = 'device-api-key';
-const store = new Store();
+const store = new Store({ projectName: 'sync-desktop' });
 
 let keytarAvailable = false;
 let keytar: any = null;
