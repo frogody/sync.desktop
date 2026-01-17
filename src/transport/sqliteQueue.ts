@@ -52,8 +52,11 @@ export class SQLiteQueue {
    */
   constructor(dbPath = DB_PATH) {
     // Only create directory if not using in-memory database
-    if (dbPath !== ':memory:' && !fs.existsSync(DB_DIR)) {
-      fs.mkdirSync(DB_DIR, { recursive: true });
+    if (dbPath !== ':memory:') {
+      const dir = path.dirname(dbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
     }
     this.db = new Database(dbPath);
     this.db.exec(`CREATE TABLE IF NOT EXISTS queue (id TEXT PRIMARY KEY, created_at INTEGER, payload TEXT);`);
