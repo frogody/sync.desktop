@@ -1,4 +1,21 @@
 name: Build & Package macOS
+#
+# This workflow builds and packages SYNC Desktop for macOS, producing DMG and PKG installers.
+#
+# Optional Code Signing (configure these secrets to enable):
+#   - APPLE_P12_BASE64: Base64-encoded .p12 certificate file
+#   - P12_PASSWORD: Password for the .p12 certificate
+#   - KEYCHAIN_PASSWORD: Password for temporary build keychain
+#   - MAC_SIGNING_IDENTITY: Certificate identity name (e.g., "Developer ID Application: Company Name")
+#
+# Optional Notarization (configure these secrets to enable):
+#   - APPLE_API_KEY_ID: App Store Connect API Key ID
+#   - APPLE_API_KEY_ISSUER_ID: App Store Connect API Issuer ID
+#   - APPLE_API_KEY_PRIVATE_BASE64: Base64-encoded .p8 API key file
+#
+# Debug:
+#   - DEBUG_CODESIGN: Set to 'true' to list available signing identities
+#
 
 on:
   workflow_dispatch:
