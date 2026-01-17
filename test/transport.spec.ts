@@ -257,12 +257,13 @@ describe('Transport', () => {
 
   it('should use configurable initialBackoffMs', async () => {
     // Create transport with custom backoff
+    const customDbPath = path.join('/tmp', `test-queue-backoff-${Date.now()}-${Math.random()}.db`);
     const customTransport = new Transport({
       endpoint: 'https://api.test.com',
       deviceId: 'test-device-456',
       initialBackoffMs: 500, // Custom 500ms initial backoff
       maxRetries: 2,
-      queueDbPath: path.join('/tmp', `test-queue-backoff-${Date.now()}-${Math.random()}.db`),
+      queueDbPath: customDbPath,
     });
 
     try {
@@ -287,9 +288,8 @@ describe('Transport', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     } finally {
       customTransport.close();
-      const dbPath = path.join('/tmp', `test-queue-backoff-${Date.now()}-${Math.random()}.db`);
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
+      if (fs.existsSync(customDbPath)) {
+        fs.unlinkSync(customDbPath);
       }
     }
   });
