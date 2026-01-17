@@ -34,8 +34,9 @@ jobs:
       # UNSIGNED BUILD (Default - no secrets required)
       # This will create unsigned DMG and PKG installers
       # Users will see Gatekeeper warnings but can still install
+      # Runs when Apple Developer credentials are NOT configured
       - name: Package macOS (unsigned)
-        if: ${{ !secrets.APPLE_ID && !secrets.APPLE_API_KEY_ID }}
+        if: ${{ !(secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 && secrets.APPLE_TEAM_ID) }}
         run: npm run package:mac
         env:
           # Skip notarization for unsigned builds

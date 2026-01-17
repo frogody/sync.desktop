@@ -131,7 +131,7 @@ The `.pkg` installer provides a native macOS installation experience with a GUI 
 **Note on unsigned builds:** If you download an unsigned `.pkg` (from CI builds without Apple Developer signing), macOS Gatekeeper may show a warning:
 - Right-click the `.pkg` file and select "Open"
 - Click "Open" in the security dialog
-- Future launches won't require this step
+- Once installed, the app itself will be trusted, but each new unsigned installer release will require this same bypass procedure
 
 #### Option 2: DMG Installation (Traditional)
 
