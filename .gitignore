@@ -30,6 +30,7 @@ coverage/
 
 # Electron
 *.dmg
+*.pkg
 *.exe
 *.AppImage
 *.snap
