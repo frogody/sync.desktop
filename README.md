@@ -431,3 +431,69 @@ We publish a macOS `.pkg` installer alongside the DMG. The `.pkg` is a standard 
 
 Unsigned vs Signed builds
 - By default CI produces an unsigned `.pkg`. To produce signed & notarized installers, add App Store Connect API credentials to GitHub Secrets (APPLE_API_KEY_ID, APPLE_API_KEY_ISSUER_ID, APPLE_API_KEY_PRIVATE_BASE64). See README for details.
+
+### macOS Plug & Play Installer (.pkg) — Installer, signing & notarization
+
+We produce a macOS `.pkg` installer and DMG. By default CI will produce unsigned artifacts. Signing and notarization are optional and enabled only when repository secrets are present.
+
+#### Installing the .pkg (end users)
+
+1. Download the `.pkg` from the [Releases](https://github.com/frogody/sync.desktop/releases) page
+2. Double-click to open in Installer.app
+3. Follow the on-screen prompts to install
+
+#### CI Workflow: Build & Package macOS
+
+The workflow `.github/workflows/build-macos.yml` runs on:
+- Manual trigger (`workflow_dispatch`)
+- Release events (`release: [published]`)
+
+**Unsigned builds** (default):
+- No secrets required
+- Produces unsigned `.pkg`, `.dmg`, and `.zip` artifacts
+- Users may see Gatekeeper warnings
+
+**Signed & notarized builds** (optional):
+- Requires repository secrets (see below)
+- Produces signed and notarized artifacts
+- No Gatekeeper warnings for end users
+
+#### Required Secrets for Signing & Notarization
+
+Add these secrets via GitHub Settings → Secrets and variables → Actions → New repository secret:
+
+1. **APPLE_P12_BASE64**: Base64-encoded `.p12` file (certificate + private key)
+   ```bash
+   base64 -i /path/to/certificate.p12 | tr -d '\n' | pbcopy
+   ```
+2. **P12_PASSWORD**: Password used when exporting the `.p12`
+3. **KEYCHAIN_PASSWORD**: Password for temporary CI keychain (choose any secure password)
+4. **MAC_SIGNING_IDENTITY**: Common name of your Developer ID Application certificate (e.g., "Developer ID Application: Your Name (TEAM_ID)")
+5. **APPLE_API_KEY_PRIVATE_BASE64**: Base64-encoded App Store Connect API key (`.p8` file)
+   ```bash
+   base64 -i /path/to/AuthKey_ABC123XYZ.p8 | tr -d '\n' | pbcopy
+   ```
+6. **APPLE_API_KEY_ID**: Key ID from App Store Connect (e.g., `ABC123XYZ`)
+7. **APPLE_API_KEY_ISSUER_ID**: Issuer ID from App Store Connect (UUID format)
+8. **APPLE_TEAM_ID** (optional): Your Apple Developer Team ID
+9. **DEBUG_CODESIGN** (optional): Set to `true` to enable verbose codesigning logs
+
+#### Testing
+
+**Unsigned build:**
+1. Go to Actions → Build & Package macOS → Run workflow
+2. Download the artifact zip
+3. Extract and open the `.pkg` in Installer.app
+
+**Signed build:**
+1. Add all required secrets
+2. Run the workflow
+3. Check the "Import .p12" and "Notarize" steps in the logs
+4. Verify signed artifacts on the Release page
+
+#### Security Notes
+
+- **Never commit** `.p12`, `.p8`, or password files to the repository
+- All secrets are stored in GitHub Actions secrets
+- The temporary keychain is created and destroyed within the CI job
+- Private keys are never printed in logs
