@@ -109,13 +109,33 @@ We take your privacy seriously:
 ### Download
 Get the latest version from [GitHub Releases](https://github.com/frogody/sync.desktop/releases):
 
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon & Intel) | `.dmg` file |
-| Windows | `.exe` installer |
+| Platform | Download | Installation Method |
+|----------|----------|---------------------|
+| macOS (Apple Silicon & Intel) | `.pkg` file (recommended) | Double-click installer |
+| macOS (Apple Silicon & Intel) | `.dmg` file | Drag to Applications |
+| Windows | `.exe` installer | Run installer |
 
 ### macOS Installation
-1. Download the `.dmg` file
+
+#### Option 1: Plug & Play Installer (.pkg) - Recommended
+
+The `.pkg` installer provides a native macOS installation experience with a GUI wizard:
+
+1. **Download** the `.pkg` file from [GitHub Releases](https://github.com/frogody/sync.desktop/releases)
+2. **Double-click** the `.pkg` file to launch the macOS Installer
+3. **Follow the wizard** - click through the installation steps
+4. **Grant permissions** when the app first launches:
+   - **Accessibility** permission (required for activity tracking)
+   - **Screen Recording** permission (optional, for Deep Context features)
+
+**Note on unsigned builds:** If you download an unsigned `.pkg` (from CI builds without Apple Developer signing), macOS Gatekeeper may show a warning:
+- Right-click the `.pkg` file and select "Open"
+- Click "Open" in the security dialog
+- Once installed, the app itself will be trusted, but each new unsigned installer release will require this same bypass procedure
+
+#### Option 2: DMG Installation (Traditional)
+
+1. Download the `.dmg` file from [GitHub Releases](https://github.com/frogody/sync.desktop/releases)
 2. Open the DMG and drag SYNC Desktop to Applications
 3. On first launch, right-click the app and select "Open" (required for non-App Store apps)
 4. Grant Accessibility permission when prompted (required for activity tracking)
@@ -282,6 +302,71 @@ npm run package:win
 ```
 
 Built installers are output to the `release/` directory.
+
+### Apple Code Signing & Notarization (macOS)
+
+By default, builds are **unsigned** and will show Gatekeeper warnings when users install them. To create **signed and notarized** builds that install smoothly without warnings, you need an Apple Developer account and the following credentials:
+
+#### Required: Apple Developer Account
+- Enroll at [developer.apple.com](https://developer.apple.com) ($99/year)
+- Create an **App Store Connect API Key** with Developer access
+
+#### Step 1: Generate App Store Connect API Key
+
+1. Go to [App Store Connect → Users and Access → Keys](https://appstoreconnect.apple.com/access/api)
+2. Click the **+** button to create a new key
+3. Give it a name (e.g., "SYNC Desktop CI")
+4. Select **Developer** or **Admin** access
+5. Click **Generate**
+6. **Download the `.p8` file** (you can only download it once!)
+7. Note the **Key ID** (10 characters, e.g., `AB12CD34EF`)
+8. Note the **Issuer ID** (UUID at the top of the page)
+
+#### Step 2: Prepare Credentials for CI
+
+You need to base64-encode the `.p8` private key file:
+
+```bash
+# On macOS/Linux:
+base64 -i AuthKey_AB12CD34EF.p8 | pbcopy
+
+# On Windows (PowerShell):
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_AB12CD34EF.p8")) | Set-Clipboard
+```
+
+#### Step 3: Add GitHub Secrets
+
+Go to your repository **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `APPLE_API_KEY_ID` | `AB12CD34EF` | 10-character Key ID from Step 1 |
+| `APPLE_API_KEY_ISSUER_ID` | `12345678-abcd-...` | Issuer ID UUID from Step 1 |
+| `APPLE_API_KEY_PRIVATE_BASE64` | `MIGTAgEAMBMG...` | Base64-encoded `.p8` file from Step 2 |
+| `APPLE_TEAM_ID` | `A1B2C3D4E5` | Your 10-character Team ID (from developer.apple.com membership) |
+
+#### Step 4: Trigger a Release Build
+
+Once secrets are added, the GitHub Actions workflow will automatically:
+1. ✅ Sign the app with your Developer ID certificate
+2. ✅ Notarize the app with Apple
+3. ✅ Staple the notarization ticket
+4. ✅ Upload signed `.dmg` and `.pkg` to the release
+
+Users will be able to install without any Gatekeeper warnings!
+
+#### Alternative: Apple ID Authentication
+
+Instead of API Keys, you can use your Apple ID (less secure, not recommended for CI):
+
+```bash
+# Required secrets:
+APPLE_ID=your-email@example.com
+APPLE_APP_SPECIFIC_PASSWORD=abcd-efgh-ijkl-mnop  # Generate at appleid.apple.com
+APPLE_TEAM_ID=A1B2C3D4E5
+```
+
+To use this method, uncomment the Apple ID environment variables in `.github/workflows/build-macos.yml`.
 
 ### Native Module Requirements
 

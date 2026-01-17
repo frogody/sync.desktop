@@ -1,0 +1,136 @@
+name: Build macOS Installer
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., v1.0.0)'
+        required: false
+        default: ''
+
+jobs:
+  build-macos:
+    name: Build macOS DMG and PKG
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+      
+      # UNSIGNED BUILD (Default - no secrets required)
+      # This will create unsigned DMG and PKG installers
+      # Users will see Gatekeeper warnings but can still install
+      # Runs when Apple Developer credentials are NOT configured
+      - name: Package macOS (unsigned)
+        if: ${{ !(secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 && secrets.APPLE_TEAM_ID) }}
+        run: npm run package:mac
+        env:
+          # Skip notarization for unsigned builds
+          SKIP_NOTARIZE: 'true'
+          # Prevent electron-builder from failing on missing credentials
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      
+      # SIGNED & NOTARIZED BUILD (Optional - requires Apple Developer secrets)
+      # Uncomment and configure the following steps when you have Apple Developer credentials
+      # 
+      # To enable signing and notarization, add these secrets to your GitHub repository:
+      # Settings -> Secrets and variables -> Actions -> New repository secret
+      #
+      # Required secrets:
+      # - APPLE_API_KEY_ID: Your 10-character API Key ID (e.g., AB12CD34EF)
+      # - APPLE_API_KEY_ISSUER_ID: Your API Key Issuer ID (UUID format)
+      # - APPLE_API_KEY_PRIVATE_BASE64: Base64-encoded .p8 private key file
+      # - APPLE_TEAM_ID: Your Apple Developer Team ID (10-character alphanumeric)
+      #
+      # Optional secrets (alternative to API Key method):
+      # - APPLE_ID: Your Apple ID email
+      # - APPLE_APP_SPECIFIC_PASSWORD: App-specific password from appleid.apple.com
+      #
+      # How to generate and encode the API key:
+      # 1. Create API Key at https://appstoreconnect.apple.com/access/api
+      #    - Key Type: "App Store Connect API"
+      #    - Access: "Developer" role or higher
+      # 2. Download the .p8 file (e.g., AuthKey_AB12CD34EF.p8)
+      # 3. Encode it: base64 -i AuthKey_AB12CD34EF.p8 | pbcopy
+      # 4. Paste the result into APPLE_API_KEY_PRIVATE_BASE64 secret
+      #
+      - name: Setup Apple API Key (for notarization)
+        if: ${{ secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 && secrets.APPLE_TEAM_ID }}
+        run: |
+          # Create the private_keys directory in App Store Connect API key location
+          mkdir -p ~/private_keys
+          
+          # Decode and save the .p8 key file
+          echo "${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          
+          # Set proper permissions
+          chmod 600 ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          
+          echo "Apple API Key configured for notarization"
+      
+      - name: Package macOS (signed & notarized)
+        if: ${{ secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 && secrets.APPLE_TEAM_ID }}
+        run: npm run package:mac
+        env:
+          # Apple API Key authentication (preferred method)
+          APPLE_API_KEY: ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          
+          # Alternative: Apple ID authentication (uncomment if using this method instead)
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          
+          # Enable code signing
+          CSC_IDENTITY_AUTO_DISCOVERY: 'true'
+      
+      # Find and list built artifacts
+      - name: List build artifacts
+        run: |
+          echo "Build artifacts in release directory:"
+          ls -lh release/
+          echo ""
+          echo "Finding DMG and PKG files:"
+          find release/ -name "*.dmg" -o -name "*.pkg"
+      
+      # Upload artifacts to GitHub Release
+      # Will create the release if it doesn't exist (for workflow_dispatch)
+      - name: Upload artifacts to Release
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.tag_name }}
+          files: |
+            release/*.dmg
+            release/*.pkg
+          # Don't fail if the release doesn't exist (workflow_dispatch with invalid tag)
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Upload artifacts for workflow runs (for testing/debugging)
+      - name: Upload build artifacts (for workflow runs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            release/*.dmg
+            release/*.pkg
+          retention-days: 7

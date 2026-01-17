@@ -27,6 +27,10 @@ mac:
       arch:
         - x64
         - arm64
+    - target: pkg
+      arch:
+        - x64
+        - arm64
   icon: assets/icons/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
