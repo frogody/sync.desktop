@@ -283,6 +283,64 @@ npm run package:win
 
 Built installers are output to the `release/` directory.
 
+### Native Module Requirements
+
+This project uses native Node.js modules that require compilation:
+
+#### Required Native Modules
+- **better-sqlite3** - High-performance SQLite bindings for the transport queue
+- **keytar** - Secure OS keychain integration for API key storage
+
+#### Build Tools Required
+
+**macOS:**
+```bash
+xcode-select --install  # Xcode Command Line Tools
+```
+
+**Windows:**
+- Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) with "Desktop development with C++" workload
+- Or install [windows-build-tools](https://www.npmjs.com/package/windows-build-tools): `npm install --global windows-build-tools`
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt-get install build-essential libsecret-1-dev
+```
+
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install gcc-c++ make libsecret-devel
+```
+
+#### Rebuilding Native Modules
+
+Native modules are automatically rebuilt for Electron during `npm install` via electron-builder.
+
+If you encounter issues, manually rebuild:
+```bash
+# Rebuild all native modules for Electron
+npm rebuild
+
+# Or rebuild a specific module
+npm rebuild better-sqlite3 --build-from-source
+npm rebuild keytar --build-from-source
+```
+
+#### CI/CD Notes
+
+For CI environments, ensure build tools are installed before running `npm install`:
+
+```yaml
+# GitHub Actions example
+- name: Install build dependencies (Ubuntu)
+  run: sudo apt-get update && sudo apt-get install -y build-essential libsecret-1-dev
+  
+- name: Install dependencies
+  run: npm install
+```
+
+**Keytar Fallback:** If keytar fails to build (e.g., missing libsecret on Linux), the pairing module automatically falls back to electron-store. The app will still work, but API keys will be stored in an encrypted JSON file instead of the OS keychain.
+
 ---
 
 ## Project Structure
