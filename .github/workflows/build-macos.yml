@@ -69,7 +69,7 @@ jobs:
       # 4. Paste the result into APPLE_API_KEY_PRIVATE_BASE64 secret
       #
       - name: Setup Apple API Key (for notarization)
-        if: ${{ secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 }}
+        if: ${{ secrets.APPLE_API_KEY_ID && secrets.APPLE_API_KEY_ISSUER_ID && secrets.APPLE_API_KEY_PRIVATE_BASE64 && secrets.APPLE_TEAM_ID }}
         run: |
           # Create the private_keys directory in App Store Connect API key location
           mkdir -p ~/private_keys
@@ -110,6 +110,7 @@ jobs:
           find release/ -name "*.dmg" -o -name "*.pkg"
       
       # Upload artifacts to GitHub Release
+      # Will create the release if it doesn't exist (for workflow_dispatch)
       - name: Upload artifacts to Release
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != '')
         uses: softprops/action-gh-release@v2
@@ -118,6 +119,8 @@ jobs:
           files: |
             release/*.dmg
             release/*.pkg
+          # Don't fail if the release doesn't exist (workflow_dispatch with invalid tag)
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
