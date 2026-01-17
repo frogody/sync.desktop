@@ -56,6 +56,7 @@
   "build": {
     "appId": "com.isyncso.sync-desktop",
     "productName": "SYNC Desktop",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -66,7 +67,7 @@
     "mac": {
       "target": [
         "dmg",
-        "zip"
+        "pkg"
       ],
       "icon": "assets/icons/icon.icns",
       "category": "public.app-category.productivity",
