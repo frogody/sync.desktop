@@ -81,10 +81,8 @@ describe('Transport', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create a unique database path for each test
-    testQueuePath = path.join('/tmp', `test-queue-${Date.now()}-${Math.random()}.db`);
-    
-    // Use a file-based db for transport tests so we can test persistence
+    // Use in-memory db for test isolation (each connection gets its own database)
+    testQueuePath = ':memory:';
     transport = new Transport({
       endpoint: 'https://api.test.com',
       deviceId: 'test-device-123',
@@ -98,10 +96,6 @@ describe('Transport', () => {
   afterEach(() => {
     if (transport) {
       transport.close();
-    }
-    // Clean up test db
-    if (fs.existsSync(testQueuePath)) {
-      fs.unlinkSync(testQueuePath);
     }
   });
 
