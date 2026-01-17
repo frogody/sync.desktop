@@ -81,7 +81,7 @@ describe('Transport', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Use unique in-memory db for each test
+    // Use in-memory db for test isolation (each connection gets its own database)
     testQueuePath = ':memory:';
     transport = new Transport({
       endpoint: 'https://api.test.com',
