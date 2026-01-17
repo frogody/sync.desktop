@@ -164,6 +164,91 @@ No special permissions required.
 
 ---
 
+## Device Pairing & Transport
+
+### Device Pairing
+
+SYNC Desktop uses secure device pairing to authenticate with the SYNC cloud. Your device API key is stored securely using OS-level keychain (macOS Keychain, Windows Credential Manager) via `keytar`, with a fallback to encrypted electron-store.
+
+**Pairing your device:**
+
+```typescript
+import { storeApiKey, getApiKey, deleteApiKey } from './pairing/pairing';
+
+// Store API key (obtained from app.isyncso.com)
+await storeApiKey('your-device-api-key');
+
+// Retrieve API key
+const apiKey = await getApiKey();
+
+// Remove pairing
+await deleteApiKey();
+```
+
+### Transport Configuration
+
+The Transport module handles reliable, batched upload of activity data to the SYNC cloud with automatic retry and offline support.
+
+**Configuration Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `endpoint` | - | SYNC API endpoint (required) |
+| `deviceId` | - | Unique device identifier (required) |
+| `batchSize` | 200 | Max events per batch |
+| `maxBatchBytes` | 512KB | Max batch size in bytes (before gzip) |
+| `maxRetries` | 6 | Max retry attempts on failure |
+| `clientVersion` | '1.0.0' | Client version identifier |
+
+**Basic Usage:**
+
+```typescript
+import { Transport } from './transport/Transport';
+
+const transport = new Transport({
+  endpoint: 'https://app.isyncso.com',
+  deviceId: 'unique-device-id',
+  batchSize: 200,
+  maxRetries: 6,
+});
+
+// Enqueue events (added to persistent SQLite queue)
+await transport.enqueue({ 
+  type: 'activity',
+  app: 'Chrome',
+  timestamp: Date.now(),
+});
+
+// Trigger flush (batches events, gzips, and uploads)
+await transport.flushSoon();
+
+// Force immediate flush
+await transport.forceFlush();
+
+// Get transport status
+const status = transport.getStatus();
+console.log(status.queueLength); // Pending events
+console.log(status.sending);     // Currently sending?
+```
+
+**How it works:**
+
+1. **Persistent Queue** - Events are stored in a local SQLite database (`~/.sync-desktop/transport_queue.db`), surviving app restarts
+2. **Batching** - Events are grouped by count and byte size before upload
+3. **Compression** - Batches are gzipped to reduce bandwidth usage
+4. **Idempotency** - Each batch has a unique `upload_id` and events have `event_id` to prevent duplicates
+5. **Retry Logic** - Exponential backoff with jitter for 5xx and network errors
+6. **Error Handling** - 4xx client errors drop the batch (except 429 rate limit which retries)
+
+**Retry Behavior:**
+
+- **5xx errors & network failures**: Retry with exponential backoff (2s, 4s, 8s, 16s, 32s, 60s max)
+- **429 rate limit**: Retry with backoff
+- **4xx errors (except 429)**: Drop batch to prevent stuck queue
+- **Max retries exceeded**: Stop and log error
+
+---
+
 ## Development
 
 ```bash
@@ -175,6 +260,12 @@ npm run dev
 
 # In a separate terminal, start Electron
 npm run electron:dev
+
+# Run tests
+npm test
+
+# Run tests once (CI mode)
+npm run test:run
 ```
 
 ## Building
@@ -214,11 +305,17 @@ sync-desktop/
 │   │   ├── db/            # SQLite database
 │   │   ├── ipc/           # IPC handlers
 │   │   └── tray/          # System tray
+│   ├── transport/         # Transport layer (NEW)
+│   │   ├── sqliteQueue.ts      # Persistent event queue
+│   │   └── Transport.ts        # Batching & retry logic
+│   ├── pairing/           # Device pairing (NEW)
+│   │   └── pairing.ts          # Secure API key storage
 │   ├── renderer/          # React UI
 │   │   ├── components/    # Avatar, Chat, Voice
 │   │   └── hooks/         # Custom hooks
 │   ├── preload/           # Context bridge
 │   └── shared/            # Shared types & constants
+├── test/                  # Unit tests (NEW)
 ├── assets/                # Icons, sounds
 └── build/                 # Build config
 ```
