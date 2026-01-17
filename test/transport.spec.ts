@@ -5,6 +5,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import zlib from 'zlib';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 // Mock node-fetch
 vi.mock('node-fetch', () => ({
@@ -247,6 +248,45 @@ describe('Transport', () => {
 
     expect(payload.upload_id).toBeTruthy();
     expect(typeof payload.upload_id).toBe('string');
+  });
+
+  it('should use configurable initialBackoffMs', async () => {
+    // Create transport with custom backoff
+    const customDbPath = path.join(os.tmpdir(), `test-queue-backoff-${Date.now()}-${Math.random()}.db`);
+    const customTransport = new Transport({
+      endpoint: 'https://api.test.com',
+      deviceId: 'test-device-456',
+      initialBackoffMs: 500, // Custom 500ms initial backoff
+      maxRetries: 2,
+      queueDbPath: customDbPath,
+    });
+
+    try {
+      // Mock server error followed by success
+      fetch
+        .mockResolvedValueOnce({ ok: false, status: 500 })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      await customTransport.enqueue({ type: 'event1' });
+      
+      const startTime = Date.now();
+      await customTransport.flushSoon();
+      
+      // Wait for retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const elapsedTime = Date.now() - startTime;
+      
+      // With initialBackoffMs=500, first retry should be around 500-1500ms (2^1 * 500 + jitter)
+      // We check it's less than the default would be (2^1 * 1000 = 2000ms)
+      expect(elapsedTime).toBeLessThan(2500);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      customTransport.close();
+      if (fs.existsSync(customDbPath)) {
+        fs.unlinkSync(customDbPath);
+      }
+    }
   });
 
   it('should report status correctly', () => {
