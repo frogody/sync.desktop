@@ -18,6 +18,8 @@ export type TransportOptions = {
   maxBatchBytes?: number;
   /** Maximum retry attempts on failure (default: 6) */
   maxRetries?: number;
+  /** Initial backoff delay in milliseconds for retry logic (default: 1000) */
+  initialBackoffMs?: number;
   /** Client version identifier (default: '1.0.0') */
   clientVersion?: string;
   /** Optional custom path for queue database (mainly for testing) */
@@ -128,6 +130,7 @@ export class Transport {
       batchSize: 200,
       maxBatchBytes: 512 * 1024,
       maxRetries: 6,
+      initialBackoffMs: 1000,
       clientVersion: '1.0.0',
       ...opts,
     };
@@ -320,9 +323,9 @@ export class Transport {
    * @returns Delay in milliseconds (capped at 60 seconds)
    */
   private _calculateBackoff(retryCount: number): number {
-    // Exponential backoff: 2^retryCount * 1000ms + jitter
-    const baseDelay = Math.pow(2, retryCount) * 1000;
-    const jitter = Math.random() * 1000;
+    // Exponential backoff: 2^retryCount * initialBackoffMs + jitter
+    const baseDelay = Math.pow(2, retryCount) * this.opts.initialBackoffMs!;
+    const jitter = Math.random() * this.opts.initialBackoffMs!;
     return Math.min(baseDelay + jitter, 60000); // Cap at 60 seconds
   }
 
