@@ -104,71 +104,21 @@ jobs:
         run: |
           echo "Build artifacts in release directory:"
           ls -lh release/
+          echo ""
+          echo "Finding DMG and PKG files:"
+          find release/ -name "*.dmg" -o -name "*.pkg"
       
       # Upload artifacts to GitHub Release
-      - name: Get release info
-        id: release_info
-        run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-            echo "upload_url=${{ github.event.release.upload_url }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag_name }}" ]; then
-            echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
-            # For workflow_dispatch, we'll need to get the release by tag
-            RELEASE_INFO=$(gh release view "${{ github.event.inputs.tag_name }}" --json uploadUrl --jq .uploadUrl)
-            echo "upload_url=$RELEASE_INFO" >> $GITHUB_OUTPUT
-          else
-            echo "No release tag found, skipping upload"
-            exit 0
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-      
-      - name: Upload DMG to Release
-        if: steps.release_info.outputs.tag_name != ''
-        uses: actions/upload-release-asset@v1
+      - name: Upload artifacts to Release
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.tag_name }}
+          files: |
+            release/*.dmg
+            release/*.pkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release_info.outputs.upload_url }}
-          asset_path: ./release/SYNC Desktop-${{ steps.release_info.outputs.tag_name }}.dmg
-          asset_name: SYNC-Desktop-${{ steps.release_info.outputs.tag_name }}-macOS.dmg
-          asset_content_type: application/x-apple-diskimage
-      
-      - name: Upload PKG to Release
-        if: steps.release_info.outputs.tag_name != ''
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release_info.outputs.upload_url }}
-          asset_path: ./release/SYNC Desktop-${{ steps.release_info.outputs.tag_name }}.pkg
-          asset_name: SYNC-Desktop-${{ steps.release_info.outputs.tag_name }}-macOS.pkg
-          asset_content_type: application/x-apple-diskimage
-      
-      - name: Upload Universal DMG to Release (if exists)
-        if: steps.release_info.outputs.tag_name != ''
-        continue-on-error: true
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release_info.outputs.upload_url }}
-          asset_path: ./release/SYNC Desktop-${{ steps.release_info.outputs.tag_name }}-universal.dmg
-          asset_name: SYNC-Desktop-${{ steps.release_info.outputs.tag_name }}-macOS-universal.dmg
-          asset_content_type: application/x-apple-diskimage
-      
-      - name: Upload Universal PKG to Release (if exists)
-        if: steps.release_info.outputs.tag_name != ''
-        continue-on-error: true
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release_info.outputs.upload_url }}
-          asset_path: ./release/SYNC Desktop-${{ steps.release_info.outputs.tag_name }}-universal.pkg
-          asset_name: SYNC-Desktop-${{ steps.release_info.outputs.tag_name }}-macOS-universal.pkg
-          asset_content_type: application/x-apple-diskimage
       
       # Upload artifacts for workflow runs (for testing/debugging)
       - name: Upload build artifacts (for workflow runs)
