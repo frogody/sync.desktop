@@ -34,24 +34,24 @@ jobs:
           # Create temporary keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
           KEYCHAIN_PASSWORD="${{ secrets.KEYCHAIN_PASSWORD }}"
-          
+
           echo "Creating temporary keychain..."
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
+
           # Decode and import certificate
           echo "Importing code signing certificate..."
           P12_PATH=$RUNNER_TEMP/certificate.p12
           echo "${{ secrets.APPLE_P12_BASE64 }}" | base64 --decode > "$P12_PATH"
           security import "$P12_PATH" -k "$KEYCHAIN_PATH" -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
-          
+
           # Set partition list to allow tools to access the key
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
+
           # Add to search list
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
-          
+
           # Cleanup
           rm -f "$P12_PATH"
           echo "Certificate import complete"
@@ -87,17 +87,17 @@ jobs:
         run: |
           DMG_FILE=$(find release -type f -name "*.dmg" | head -n 1)
           PKG_FILE=$(find release -type f -name "*.pkg" | head -n 1)
-          
+
           if [ -n "$DMG_FILE" ]; then
             echo "dmg_file=$DMG_FILE" >> $GITHUB_OUTPUT
             echo "dmg_name=$(basename "$DMG_FILE")" >> $GITHUB_OUTPUT
           fi
-          
+
           if [ -n "$PKG_FILE" ]; then
             echo "pkg_file=$PKG_FILE" >> $GITHUB_OUTPUT
             echo "pkg_name=$(basename "$PKG_FILE")" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "Found DMG: $DMG_FILE"
           echo "Found PKG: $PKG_FILE"
 
