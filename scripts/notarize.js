@@ -68,6 +68,7 @@ exports.default = async function notarizing(context) {
     if (hasApiKey) {
       // Use API Key authentication (recommended for CI)
       console.log('Using App Store Connect API Key authentication');
+      // appleApiKey expects a path to the .p8 file
       notarizeOptions.appleApiKey = process.env.APPLE_API_KEY_PATH || process.env.APPLE_API_KEY;
       notarizeOptions.appleApiKeyId = process.env.APPLE_API_KEY_ID;
       notarizeOptions.appleApiIssuer = process.env.APPLE_API_KEY_ISSUER_ID;

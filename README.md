@@ -605,7 +605,7 @@ gh secret set APPLE_TEAM_ID
 ```bash
 # Set to 'true' to enable debug output showing available signing identities
 # Only enable when troubleshooting - may leak identity names in logs
-gh secret set DEBUG_CODESIGN -b "false"
+gh secret set DEBUG_CODESIGN --body "false"
 ```
 
 ### Step 6: Trigger a Build
