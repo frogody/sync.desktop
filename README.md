@@ -429,5 +429,18 @@ MIT
 
 We publish a macOS `.pkg` installer alongside the DMG. The `.pkg` is a standard macOS Installer package — download the `.pkg` from Releases and double‑click it to run the Installer.app GUI; installation completes without requiring Terminal commands.
 
-Unsigned vs Signed builds
-- By default CI produces an unsigned `.pkg`. To produce signed & notarized installers, add App Store Connect API credentials to GitHub Secrets (APPLE_API_KEY_ID, APPLE_API_KEY_ISSUER_ID, APPLE_API_KEY_PRIVATE_BASE64). See README for details.
+**Code Signing & Notarization:**
+- By default, CI produces unsigned builds
+- To produce signed & notarized installers, configure GitHub Secrets with your Apple Developer credentials
+- See **[MACOS_SIGNING.md](MACOS_SIGNING.md)** for detailed setup instructions
+
+**Required secrets for signing:**
+- `APPLE_P12_BASE64` - Base64-encoded Developer ID Application certificate (.p12)
+- `P12_PASSWORD` - Password for the .p12 file
+- `KEYCHAIN_PASSWORD` - Password for temporary CI keychain
+- `MAC_SIGNING_IDENTITY` - Full certificate name (e.g., "Developer ID Application: Your Company (TEAM_ID)")
+
+**Required secrets for notarization:**
+- `APPLE_API_KEY_ID` - App Store Connect API Key ID
+- `APPLE_API_KEY_ISSUER_ID` - App Store Connect Issuer ID
+- `APPLE_API_KEY_PRIVATE_BASE64` - Base64-encoded .p8 API private key
