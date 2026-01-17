@@ -11,6 +11,7 @@ export type TransportOptions = {
   maxBatchBytes?: number; // bytes
   maxRetries?: number;
   clientVersion?: string;
+  queueDbPath?: string; // optional path for queue database
 };
 
 export type TransportStatus = {
@@ -34,7 +35,7 @@ export class Transport {
       clientVersion: '1.0.0',
       ...opts,
     };
-    this.queue = new SQLiteQueue();
+    this.queue = new SQLiteQueue(opts.queueDbPath);
   }
 
   async enqueue(event: object): Promise<string> {

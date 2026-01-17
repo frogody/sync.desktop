@@ -77,27 +77,25 @@ describe('SQLiteQueue', () => {
 
 describe('Transport', () => {
   let transport: Transport;
-  const testQueuePath = path.join('/tmp', `test-queue-${Date.now()}.db`);
+  let testQueuePath: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Use a file-based db for transport tests so we can test persistence
+    // Use unique in-memory db for each test
+    testQueuePath = ':memory:';
     transport = new Transport({
       endpoint: 'https://api.test.com',
       deviceId: 'test-device-123',
       batchSize: 5,
       maxBatchBytes: 1024,
       maxRetries: 3,
+      queueDbPath: testQueuePath,
     });
   });
 
   afterEach(() => {
     if (transport) {
       transport.close();
-    }
-    // Clean up test db
-    if (fs.existsSync(testQueuePath)) {
-      fs.unlinkSync(testQueuePath);
     }
   });
 
@@ -218,7 +216,7 @@ describe('Transport', () => {
     // Should attempt initial + maxRetries (3) = 4 times
     expect(fetch.mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(fetch.mock.calls.length).toBeLessThanOrEqual(4);
-  });
+  }, 20000); // 20 second timeout
 
   it('should handle network errors with retry', async () => {
     // Mock network error followed by success

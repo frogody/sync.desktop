@@ -12,7 +12,10 @@ export type QueueItem = { id: string; created_at: number; payload: string };
 export class SQLiteQueue {
   private db: Database.Database;
   constructor(dbPath = DB_PATH) {
-    if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+    // Only create directory if not using in-memory database
+    if (dbPath !== ':memory:' && !fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
     this.db = new Database(dbPath);
     this.db.exec(`CREATE TABLE IF NOT EXISTS queue (id TEXT PRIMARY KEY, created_at INTEGER, payload TEXT);`);
   }
@@ -38,6 +41,11 @@ export class SQLiteQueue {
   size() {
     const row = this.db.prepare('SELECT COUNT(1) as c FROM queue').get() as any;
     return row.c;
+  }
+
+  clearAll() {
+    const stmt = this.db.prepare('DELETE FROM queue');
+    stmt.run();
   }
 
   close() {
