@@ -18,7 +18,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "package": "electron-builder build --mac --win --publish never",
-    "package:mac": "electron-builder build --mac --publish never",
+    "package:mac": "electron-builder --mac --publish=never",
     "package:win": "electron-builder build --win --publish never"
   },
   "dependencies": {
@@ -56,8 +56,10 @@
   "build": {
     "appId": "com.isyncso.sync-desktop",
     "productName": "SYNC Desktop",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "assets"
     },
     "files": [
       "dist/**/*",
@@ -66,7 +68,7 @@
     "mac": {
       "target": [
         "dmg",
-        "zip"
+        "pkg"
       ],
       "icon": "assets/icons/icon.icns",
       "category": "public.app-category.productivity",
