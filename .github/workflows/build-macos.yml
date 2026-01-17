@@ -140,13 +140,21 @@ jobs:
       - name: Upload individual assets to GitHub Release
         if: ${{ github.event_name == 'release' }}
         run: |
-          # Find all .dmg and .pkg files in the release directory
+          # Find and upload all .dmg and .pkg files in the release directory
+          shopt -s nullglob  # Prevent glob from returning literal string if no match
+          files_found=0
           for file in release/*.dmg release/*.pkg; do
             if [ -f "$file" ]; then
               echo "Uploading $file to release..."
               gh release upload "${{ github.event.release.tag_name }}" "$file" --clobber
+              files_found=$((files_found + 1))
             fi
           done
+          if [ $files_found -eq 0 ]; then
+            echo "Warning: No .dmg or .pkg files found in release directory"
+          else
+            echo "Successfully uploaded $files_found file(s)"
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
 

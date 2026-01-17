@@ -500,7 +500,7 @@ Apple provides different types of certificates for different purposes:
 - **Developer ID Application** certificate (for signing the .app bundle)
 - **Developer ID Installer** certificate (for signing the .pkg installer)
 
-⚠️ **Note:** The screenshots you provided show "Apple Development" certificates. These are for local development only and **cannot be used for distribution**. You must create "Developer ID" certificates for public releases.
+⚠️ **Note:** If you see "Apple Development" certificates in your Keychain, these are for local development only and **cannot be used for distribution**. You must create "Developer ID" certificates for public releases.
 
 ### Step 1: Create Developer ID Certificates
 
@@ -605,7 +605,7 @@ gh secret set APPLE_TEAM_ID
 ```bash
 # Set to 'true' to enable debug output showing available signing identities
 # Only enable when troubleshooting - may leak identity names in logs
-gh secret set DEBUG_CODESIGN --body "false"
+gh secret set DEBUG_CODESIGN -b "false"
 ```
 
 ### Step 6: Trigger a Build
