@@ -111,15 +111,38 @@ Get the latest version from [GitHub Releases](https://github.com/frogody/sync.de
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon & Intel) | `.dmg` file |
+| macOS (Apple Silicon & Intel) | `.dmg` file or `.pkg` installer |
 | Windows | `.exe` installer |
 
 ### macOS Installation
+
+#### Option 1: DMG (Drag & Drop)
 1. Download the `.dmg` file
 2. Open the DMG and drag SYNC Desktop to Applications
 3. On first launch, right-click the app and select "Open" (required for non-App Store apps)
 4. Grant Accessibility permission when prompted (required for activity tracking)
 5. Optionally grant Screen Recording permission for Deep Context features
+
+#### Option 2: macOS Plug & Play Installer (.pkg)
+The `.pkg` installer provides a more traditional macOS installation experience with automatic placement in the Applications folder.
+
+**Installation Steps:**
+1. Download the `.pkg` file from [GitHub Releases](https://github.com/frogody/sync.desktop/releases)
+2. Double-click the `.pkg` file to launch the installer
+3. Follow the installation wizard (Introduction → Destination → Installation)
+4. Enter your password when prompted for system-level installation
+5. Click "Close" when installation completes
+6. Launch SYNC Desktop from Applications or Spotlight
+7. Grant Accessibility permission when prompted (required for activity tracking)
+8. Optionally grant Screen Recording permission for Deep Context features
+
+**Benefits of .pkg installer:**
+- ✅ Automatic installation to `/Applications`
+- ✅ System-level package management (visible in System Preferences → Profiles on newer macOS)
+- ✅ Easier deployment for enterprise/MDM environments
+- ✅ Cleaner uninstallation via package managers
+
+**Note:** If the app is unsigned, you may need to right-click and select "Open" on first launch, or go to System Preferences → Security & Privacy to allow the app to run.
 
 ### Auto-Updates
 SYNC Desktop automatically checks for updates and will prompt you when a new version is available.
@@ -282,6 +305,102 @@ npm run package:win
 ```
 
 Built installers are output to the `release/` directory.
+
+### Code Signing & Notarization (macOS)
+
+SYNC Desktop supports optional code signing and notarization for macOS builds. This is **not required** for development, but is necessary for distribution to end users to avoid security warnings.
+
+#### Prerequisites
+
+You need an **Apple Developer Account** ($99/year) to sign and notarize macOS applications.
+
+#### Setting Up Signing & Notarization
+
+**Step 1: Generate Required Credentials**
+
+1. **App-Specific Password:**
+   - Go to [appleid.apple.com](https://appleid.apple.com)
+   - Sign in with your Apple ID
+   - Go to "Security" → "App-Specific Passwords"
+   - Click "Generate Password" and name it (e.g., "SYNC Desktop Notarization")
+   - Save the generated password securely
+
+2. **Apple API Key (for notarization):**
+   - Go to [App Store Connect → Keys](https://appstoreconnect.apple.com/access/api)
+   - Click "+" to create a new key
+   - Name: "SYNC Desktop Notarization"
+   - Access: "Admin" or "App Manager"
+   - Download the `.p8` file (can only be downloaded once!)
+   - Note the **Key ID** (e.g., `ABC123XYZ`) and **Issuer ID** (found at top of page)
+
+3. **Code Signing Certificate:**
+   - Open Xcode on your Mac
+   - Go to Preferences → Accounts → Manage Certificates
+   - Click "+" and create a "Developer ID Application" certificate
+   - Export the certificate (right-click → Export) as a `.p12` file with a password
+
+**Step 2: Encode Credentials for GitHub Secrets**
+
+```bash
+# Base64-encode the Apple API Key (.p8 file)
+base64 -i AuthKey_ABC123XYZ.p8 | pbcopy
+# The base64 string is now in your clipboard
+
+# Base64-encode the code signing certificate (.p12 file)
+base64 -i certificate.p12 | pbcopy
+# The base64 string is now in your clipboard
+```
+
+**Step 3: Add GitHub Repository Secrets**
+
+Go to your repository → Settings → Secrets and variables → Actions → New repository secret
+
+Add the following secrets:
+
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `APPLE_ID` | `your.email@example.com` | Your Apple ID email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | `xxxx-xxxx-xxxx-xxxx` | App-specific password from Step 1 |
+| `APPLE_TEAM_ID` | `ABCDE12345` | Your Apple Developer Team ID (find in developer.apple.com) |
+| `APPLE_API_KEY_ID` | `ABC123XYZ` | Key ID from the .p8 file name |
+| `APPLE_API_ISSUER` | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` | Issuer ID from App Store Connect |
+| `APPLE_API_KEY_PRIVATE_BASE64` | `LS0tLS1CRUdJTi...` | Base64-encoded .p8 file content |
+| `CSC_LINK` | `MIIJ...` | Base64-encoded .p12 certificate |
+| `CSC_KEY_PASSWORD` | `your-certificate-password` | Password for the .p12 certificate |
+
+**Step 4: Trigger Signed Build**
+
+Once the secrets are configured, the GitHub Actions workflow will automatically:
+1. Detect the presence of signing secrets
+2. Decode and prepare the Apple API key
+3. Sign the application with your Developer ID certificate
+4. Notarize the app with Apple (for Gatekeeper approval)
+5. Upload signed `.dmg` and `.pkg` files to the GitHub Release
+
+**Testing Locally (Optional)**
+
+To test signing locally, set environment variables:
+
+```bash
+export APPLE_ID="your.email@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="ABCDE12345"
+export CSC_LINK="/path/to/certificate.p12"
+export CSC_KEY_PASSWORD="your-certificate-password"
+
+npm run package:mac
+```
+
+**Unsigned Builds**
+
+If the secrets are not configured, the workflow will automatically build **unsigned** versions. These work fine for development and testing, but users will see a warning on first launch.
+
+To explicitly skip notarization:
+
+```bash
+export SKIP_NOTARIZE=true
+npm run package:mac
+```
 
 ### Native Module Requirements
 

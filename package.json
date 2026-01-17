@@ -66,6 +66,7 @@
     "mac": {
       "target": [
         "dmg",
+        "pkg",
         "zip"
       ],
       "icon": "assets/icons/icon.icns",
