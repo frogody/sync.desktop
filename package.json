@@ -24,7 +24,7 @@
   "dependencies": {
     "animejs": "^3.2.2",
     "better-sqlite3": "^11.7.0",
-    "electron-store": "^10.0.0",
+    "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "get-windows": "^9.2.3",
     "keytar": "^7.9.0",

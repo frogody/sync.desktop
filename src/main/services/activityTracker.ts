@@ -11,7 +11,27 @@
  * - Event emission for UI updates
  */
 
-import { activeWindow, Result as ActiveWinResult } from 'get-windows';
+// get-windows is ESM-only — use dynamic import to load it from CJS context
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
+const importESM = new Function('modulePath', 'return import(modulePath)') as (m: string) => Promise<any>;
+
+let _activeWindow: ((options?: any) => Promise<any>) | null = null;
+
+async function loadActiveWindow(): Promise<(options?: any) => Promise<any>> {
+  if (!_activeWindow) {
+    const mod = await importESM('get-windows');
+    _activeWindow = mod.activeWindow;
+  }
+  return _activeWindow!;
+}
+
+// Local type matching get-windows Result shape
+interface ActiveWinResult {
+  title: string;
+  owner: { name: string; processId: number; path?: string; bundleId?: string };
+  platform: string;
+  url?: string;
+}
 import { EventEmitter } from 'events';
 import { ActivityLog } from '../../shared/types';
 import {
@@ -128,7 +148,8 @@ export class ActivityTracker extends EventEmitter {
 
   private async poll(): Promise<void> {
     try {
-      const window = await activeWindow();
+      const getActiveWindow = await loadActiveWindow();
+      const window = await getActiveWindow();
 
       // Handle idle state (no active window)
       if (!window) {
