@@ -23,6 +23,7 @@ import {
   getCloudSyncService,
   getDeepContextManager,
 } from '../index';
+import { refreshAccessToken } from '../services/authUtils';
 import { getRecentActivity, getTodayJournal, getJournalHistory } from '../db/queries';
 import {
   store,
@@ -73,7 +74,7 @@ async function fetchUserInfo(accessToken: string) {
       return {
         id: authUser.id,
         email: authUser.email,
-        fullName: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+        name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
         companyId: authUser.user_metadata?.company_id || null,
       };
     }
@@ -83,7 +84,7 @@ async function fetchUserInfo(accessToken: string) {
       return {
         id: users[0].id,
         email: users[0].email,
-        fullName: users[0].full_name || authUser.email?.split('@')[0] || 'User',
+        name: users[0].full_name || authUser.email?.split('@')[0] || 'User',
         companyId: users[0].company_id || null,
       };
     }
@@ -91,7 +92,7 @@ async function fetchUserInfo(accessToken: string) {
     return {
       id: authUser.id,
       email: authUser.email,
-      fullName: authUser.email?.split('@')[0] || 'User',
+      name: authUser.email?.split('@')[0] || 'User',
       companyId: null,
     };
   } catch (error) {
@@ -278,20 +279,31 @@ export function setupIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_STATUS, async () => {
-    const accessToken = getAccessToken();
+    let accessToken = getAccessToken();
     let user = getUser();
 
     // If we have token but no user, try to fetch user info
     if (accessToken && !user) {
       console.log('[ipc] Token exists but user missing, fetching user info...');
-      const userInfo = await fetchUserInfo(accessToken);
+      let userInfo = await fetchUserInfo(accessToken);
+
+      // If fetch fails, try refreshing the token first
+      if (!userInfo) {
+        console.log('[ipc] Fetch failed, attempting token refresh...');
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          accessToken = newToken;
+          userInfo = await fetchUserInfo(newToken);
+        }
+      }
+
       if (userInfo) {
         setUser(userInfo);
         user = userInfo;
         console.log('[ipc] User info fetched and saved:', userInfo.email);
       } else {
-        // Token might be expired, clear auth
-        console.log('[ipc] Failed to fetch user info, token may be expired');
+        // Token and refresh both failed, clear auth
+        console.log('[ipc] Failed to fetch user info after refresh, clearing auth');
         clearAuth();
         return {
           success: true,

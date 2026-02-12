@@ -10,6 +10,7 @@ import { JournalService } from './journalService';
 import { HourlySummary, DailyJournal, User } from '../../shared/types';
 import { getUnsyncedActivity, markActivitySynced } from '../db/queries';
 import { getAccessToken, getUser } from '../store';
+import { refreshAccessToken } from './authUtils';
 
 // ============================================================================
 // Constants
@@ -74,7 +75,8 @@ export class CloudSyncService {
   private async supabaseRequest<T = any>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-    body?: any
+    body?: any,
+    isRetry: boolean = false
   ): Promise<SupabaseResponse<T>> {
     const accessToken = getAccessToken();
 
@@ -93,6 +95,19 @@ export class CloudSyncService {
         },
         body: body ? JSON.stringify(body) : undefined,
       });
+
+      // Handle expired token — attempt refresh and retry once
+      if ((response.status === 401 || response.status === 403) && !isRetry) {
+        console.log('[sync] Token expired, attempting refresh...');
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          console.log('[sync] Token refreshed, retrying request');
+          return this.supabaseRequest<T>(endpoint, method, body, true);
+        } else {
+          console.error('[sync] Token refresh failed, cannot retry');
+          return { error: { message: 'Authentication expired and refresh failed' } };
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text();

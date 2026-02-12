@@ -13,7 +13,7 @@ import { AppSettings, DEFAULT_SETTINGS, User } from '../shared/types';
 
 export interface StoreSchema {
   settings: AppSettings;
-  auth: { accessToken?: string };
+  auth: { accessToken?: string; refreshToken?: string };
   authState?: string;
   user?: User;
 }
@@ -51,12 +51,23 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
 }
 
 export function getAccessToken(): string | undefined {
-  const auth = store.get('auth') as { accessToken?: string } | undefined;
+  const auth = store.get('auth') as { accessToken?: string; refreshToken?: string } | undefined;
   return auth?.accessToken;
 }
 
+export function getRefreshToken(): string | undefined {
+  const auth = store.get('auth') as { accessToken?: string; refreshToken?: string } | undefined;
+  return auth?.refreshToken;
+}
+
 export function setAccessToken(token: string | null): void {
-  store.set('auth', { accessToken: token || undefined });
+  const auth = store.get('auth') as { accessToken?: string; refreshToken?: string } || {};
+  store.set('auth', { ...auth, accessToken: token || undefined });
+}
+
+export function setRefreshToken(token: string | null): void {
+  const auth = store.get('auth') as { accessToken?: string; refreshToken?: string } || {};
+  store.set('auth', { ...auth, refreshToken: token || undefined });
 }
 
 export function getAuthState(): string | undefined {
@@ -72,7 +83,7 @@ export function setAuthState(state: string | null): void {
 }
 
 export function clearAuth(): void {
-  store.set('auth', { accessToken: undefined });
+  store.set('auth', { accessToken: undefined, refreshToken: undefined });
   store.delete('authState');
   store.delete('user');
 }

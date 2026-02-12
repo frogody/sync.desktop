@@ -32,6 +32,7 @@ import {
   getSettings,
   getAuthState,
   setAccessToken,
+  setRefreshToken,
   setAuthState,
   setUser,
 } from './store';
@@ -83,6 +84,9 @@ if (!gotTheLock) {
 const SUPABASE_URL = 'https://sfxpmzicgpaxfntqleig.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmeHBtemljZ3BheGZudHFsZWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2MDY0NjIsImV4cCI6MjA4MjE4MjQ2Mn0.337ohi8A4zu_6Hl1LpcPaWP8UkI5E4Om7ZgeU9_A8t4';
 
+// Re-export refreshAccessToken for backward compatibility
+export { refreshAccessToken } from './services/authUtils';
+
 async function fetchUserInfo(accessToken: string) {
   try {
     const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -115,7 +119,7 @@ async function fetchUserInfo(accessToken: string) {
       return {
         id: authUser.id,
         email: authUser.email,
-        fullName: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+        name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
         companyId: authUser.user_metadata?.company_id || null,
       };
     }
@@ -125,7 +129,7 @@ async function fetchUserInfo(accessToken: string) {
       return {
         id: users[0].id,
         email: users[0].email,
-        fullName: users[0].full_name || authUser.email?.split('@')[0] || 'User',
+        name: users[0].full_name || authUser.email?.split('@')[0] || 'User',
         companyId: users[0].company_id || null,
       };
     }
@@ -133,7 +137,7 @@ async function fetchUserInfo(accessToken: string) {
     return {
       id: authUser.id,
       email: authUser.email,
-      fullName: authUser.email?.split('@')[0] || 'User',
+      name: authUser.email?.split('@')[0] || 'User',
       companyId: null,
     };
   } catch (error) {
@@ -148,15 +152,21 @@ async function handleDeepLink(url: string) {
   try {
     const parsed = new URL(url);
 
-    // Handle auth callback: isyncso://auth?token=xxx&state=yyy
+    // Handle auth callback: isyncso://auth?token=xxx&refresh_token=yyy&state=zzz
     if (parsed.hostname === 'auth') {
       const token = parsed.searchParams.get('token');
+      const refreshTokenParam = parsed.searchParams.get('refresh_token');
       const state = parsed.searchParams.get('state');
 
       // Verify state matches what we stored
       const storedState = getAuthState();
       if (state && state === storedState) {
+        // Store both tokens
         setAccessToken(token);
+        if (refreshTokenParam) {
+          setRefreshToken(refreshTokenParam);
+          console.log('[main] Refresh token saved');
+        }
         setAuthState(null);
 
         // Fetch user info
@@ -165,6 +175,8 @@ async function handleDeepLink(url: string) {
           if (userInfo) {
             setUser(userInfo);
             console.log('[main] User info saved:', userInfo.email);
+          } else {
+            console.error('[main] Failed to fetch user info after auth - user object not saved');
           }
         }
 
@@ -173,8 +185,23 @@ async function handleDeepLink(url: string) {
         if (widget) {
           widget.webContents.send('auth:callback', { success: true, token });
         }
+
+        // Trigger immediate cloud sync after successful auth
+        if (cloudSyncService) {
+          console.log('[main] Triggering immediate sync after auth...');
+          cloudSyncService.forceSync().then((result) => {
+            console.log('[main] Post-auth sync result:', result);
+          }).catch((err) => {
+            console.error('[main] Post-auth sync error:', err);
+          });
+        }
       } else {
-        console.error('[main] Auth state mismatch');
+        console.error('[main] Auth state mismatch - stored:', storedState, 'received:', state);
+        // Notify renderer of auth failure
+        const widget = getFloatingWidget();
+        if (widget) {
+          widget.webContents.send('auth:callback', { success: false, error: 'State mismatch' });
+        }
       }
     }
   } catch (error) {
@@ -277,7 +304,9 @@ app.whenReady().then(async () => {
   // Start scheduler for periodic tasks
   scheduler = new Scheduler(summaryService, journalService, deepContextManager || undefined);
   scheduler.setSyncCallback(async () => {
-    if (cloudSyncService && settings.autoSync) {
+    // Read fresh settings each time (don't use closure-captured value)
+    const currentSettings = getSettings();
+    if (cloudSyncService && currentSettings.autoSync) {
       await cloudSyncService.sync();
     }
   });
