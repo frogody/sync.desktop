@@ -15,9 +15,9 @@ import {
   collapseToAvatar,
 } from '../windows/floatingWidget';
 import { WEB_APP_URL } from '../../shared/constants';
-import { getActivityTracker, setActivityTracker } from '../index';
+import { getActivityTracker, setActivityTracker, getCloudSyncService } from '../index';
 import { ActivityTracker } from '../services/activityTracker';
-import { getSettings } from '../store';
+import { getSettings, updateSettings } from '../store';
 import { checkForUpdates, getUpdateStatus } from '../services/autoUpdater';
 
 // ============================================================================
@@ -122,19 +122,37 @@ export function updateTrayMenu(): void {
         if (isTracking) {
           activityTracker?.stop();
           setActivityTracker(null);
+          updateSettings({ trackingEnabled: false });
+          console.log('[tray] Tracking paused');
         } else {
           const newTracker = new ActivityTracker();
           newTracker.start();
           setActivityTracker(newTracker);
+          updateSettings({ trackingEnabled: true });
+          console.log('[tray] Tracking resumed');
         }
         updateTrayMenu();
       },
     },
     {
       label: 'Sync Now',
-      click: () => {
-        // TODO: Implement cloud sync
+      click: async () => {
         console.log('[tray] Manual sync triggered');
+        const syncService = getCloudSyncService();
+        if (syncService) {
+          const result = await syncService.forceSync();
+          console.log('[tray] Sync result:', result);
+          if (!result.success) {
+            dialog.showMessageBox({
+              type: 'warning',
+              title: 'Sync Failed',
+              message: result.error || 'Cloud sync failed',
+              buttons: ['OK'],
+            });
+          }
+        } else {
+          console.log('[tray] No sync service available');
+        }
       },
     },
     { type: 'separator' },

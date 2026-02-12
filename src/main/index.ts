@@ -12,7 +12,7 @@
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 import path from 'path';
 import { createFloatingWidget, getFloatingWidget } from './windows/floatingWidget';
-import { createSystemTray } from './tray/systemTray';
+import { createSystemTray, updateTrayMenu } from './tray/systemTray';
 import { setupIpcHandlers } from './ipc/handlers';
 import { ActivityTracker } from './services/activityTracker';
 import { ContextManager } from './services/contextManager';
@@ -186,7 +186,16 @@ async function handleDeepLink(url: string) {
           widget.webContents.send('auth:callback', { success: true, token });
         }
 
-        // Trigger immediate cloud sync after successful auth
+        // Generate current hour summary and sync immediately
+        if (summaryService) {
+          console.log('[main] Generating current hour summary...');
+          try {
+            await summaryService.saveLastHourSummary();
+            await summaryService.saveCurrentHourSummary();
+          } catch (err) {
+            console.error('[main] Summary generation error:', err);
+          }
+        }
         if (cloudSyncService) {
           console.log('[main] Triggering immediate sync after auth...');
           cloudSyncService.forceSync().then((result) => {
@@ -301,6 +310,9 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Update tray menu now that tracker state is known
+  updateTrayMenu();
+
   // Start scheduler for periodic tasks
   scheduler = new Scheduler(summaryService, journalService, deepContextManager || undefined);
   scheduler.setSyncCallback(async () => {
@@ -313,6 +325,22 @@ app.whenReady().then(async () => {
   scheduler.start();
 
   console.log('[main] Scheduler started');
+
+  // On startup: try to generate summary for last hour (may have been missed)
+  // and trigger an immediate sync if authenticated
+  if (summaryService) {
+    summaryService.saveLastHourSummary().catch(() => {});
+  }
+  setTimeout(async () => {
+    if (cloudSyncService && cloudSyncService.isAuthenticated()) {
+      console.log('[main] Startup sync: generating current hour summary and syncing...');
+      if (summaryService) {
+        await summaryService.saveCurrentHourSummary().catch(() => {});
+      }
+      const result = await cloudSyncService.forceSync();
+      console.log('[main] Startup sync result:', result);
+    }
+  }, 10000); // Wait 10s for app to settle
 
   // Hide dock icon on macOS (we use menu bar/tray instead)
   if (process.platform === 'darwin' && !settings.showInDock) {

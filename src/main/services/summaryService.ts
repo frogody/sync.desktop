@@ -150,6 +150,47 @@ export class SummaryService {
   }
 
   /**
+   * Generate and save summary for the current partial hour (for immediate sync)
+   */
+  async saveCurrentHourSummary(): Promise<number | null> {
+    const now = new Date();
+    const hourStart = new Date(now);
+    hourStart.setMinutes(0, 0, 0);
+
+    const summary = this.generateHourlySummary(hourStart);
+    if (!summary || summary.totalMinutes < 1) {
+      console.log('[summary] No meaningful activity in current hour yet');
+      return null;
+    }
+
+    // Check if we already have a summary for this hour
+    const existing = getHourlySummaryByRange(hourStart, new Date(hourStart.getTime() + 3600000));
+    if (existing.length > 0) {
+      console.log('[summary] Summary already exists for current hour, skipping');
+      return null;
+    }
+
+    try {
+      const id = insertHourlySummary({
+        hourStart: summary.hourStart.getTime(),
+        appBreakdown: summary.appBreakdown,
+        totalMinutes: summary.totalMinutes,
+        focusScore: summary.focusScore,
+        ocrText: null,
+        semanticCategory: null,
+        commitments: null,
+        synced: false,
+      });
+
+      console.log('[summary] Saved current hour partial summary:', summary.hourStart.toISOString(), `(${summary.totalMinutes} min)`);
+      return id;
+    } catch (error) {
+      console.error('[summary] Failed to save current hour summary:', error);
+      return null;
+    }
+  }
+
+  /**
    * Generate and save summary for the last completed hour
    */
   async saveLastHourSummary(deepContextData?: { ocrText?: string; semanticCategory?: string; commitments?: any[] }): Promise<number | null> {
