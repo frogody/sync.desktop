@@ -486,7 +486,7 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
               strokeWidth="2"
               className={`${
                 syncStatus?.isSyncing
-                  ? 'text-purple-400 animate-spin'
+                  ? 'text-cyan-400 animate-spin'
                   : syncStatus?.pendingItems &&
                     (syncStatus.pendingItems.summaries > 0 || syncStatus.pendingItems.journals > 0)
                   ? 'text-yellow-400'
@@ -513,9 +513,9 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* Login Banner */}
         {isAuthenticated === false && (
-          <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-lg p-4 border border-white/10">
+          <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl p-4 border border-cyan-500/20">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-sync-blue to-sync-purple flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -529,7 +529,7 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
             <button
               onClick={handleLogin}
               disabled={isLoggingIn}
-              className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-sync-blue to-sync-purple text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-medium rounded-xl hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50"
             >
               {isLoggingIn ? (
                 <span className="flex items-center justify-center gap-2">
@@ -586,7 +586,7 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
                         `https://app.isyncso.com${msg.actionExecuted!.redirectUrl}`
                       )
                     }
-                    className="text-sync-blue text-xs hover:underline"
+                    className="text-cyan-400 text-xs hover:underline"
                   >
                     View in app →
                   </button>
@@ -643,7 +643,7 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
               disabled={!input.trim()}
               className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${
                 input.trim()
-                  ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/20'
                   : 'bg-zinc-800 text-zinc-500'
               }`}
             >

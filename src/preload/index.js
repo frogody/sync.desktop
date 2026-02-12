@@ -15,7 +15,7 @@ const electronAPI = {
     // Window
     expandWindow: (mode) => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.WINDOW_EXPAND, mode),
     collapseWindow: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.WINDOW_COLLAPSE),
-    moveWindow: (x, y) => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.WINDOW_MOVE, { x, y }),
+    moveWindow: (x, y) => { electron_1.ipcRenderer.send(ipcChannels_1.IPC_CHANNELS.WINDOW_MOVE, { x, y }); },
     onModeChange: (callback) => {
         const handler = (_event, mode) => callback(mode);
         electron_1.ipcRenderer.on(ipcChannels_1.IPC_CHANNELS.WINDOW_MODE_CHANGE, handler);

@@ -173,7 +173,7 @@ body {
 .chat-input {
   @apply rounded-xl px-4 py-3;
   @apply text-white placeholder-zinc-500;
-  @apply focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20;
+  @apply focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20;
   @apply transition-all duration-200;
   background: rgba(39, 39, 42, 0.5); /* zinc-800/50 */
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -181,7 +181,7 @@ body {
 
 .chat-input:focus {
   background: rgba(39, 39, 42, 0.7);
-  border-color: rgba(168, 85, 247, 0.5); /* purple-500/50 */
+  border-color: rgba(6, 182, 212, 0.5); /* cyan-500/50 */
 }
 
 /* ============================================================================
@@ -189,11 +189,11 @@ body {
    ============================================================================ */
 
 .btn-primary {
-  @apply bg-gradient-to-r from-sync-blue to-sync-purple;
+  @apply bg-gradient-to-r from-cyan-500 to-blue-500;
   @apply text-white font-medium rounded-xl px-4 py-2;
   @apply hover:opacity-90 active:scale-95;
   @apply transition-all duration-200;
-  @apply shadow-lg shadow-sync-blue/20;
+  @apply shadow-lg shadow-cyan-500/20;
 }
 
 .btn-ghost {
@@ -207,8 +207,9 @@ body {
    ============================================================================ */
 
 .message-user {
-  @apply bg-purple-600 text-white rounded-2xl px-4 py-3;
+  @apply text-white rounded-2xl px-4 py-3;
   @apply max-w-[80%] ml-auto;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(59, 130, 246, 0.9));
 }
 
 .message-assistant {

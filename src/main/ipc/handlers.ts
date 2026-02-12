@@ -126,9 +126,10 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.WINDOW_MOVE, (_event, { x, y }: { x: number; y: number }) => {
+  // Use 'on' (fire-and-forget) instead of 'handle' (async round-trip)
+  // for window move — prevents IPC queue backup during fast drags
+  ipcMain.on(IPC_CHANNELS.WINDOW_MOVE, (_event, { x, y }: { x: number; y: number }) => {
     moveWidget(x, y);
-    return { success: true };
   });
 
   // ============================================================================
