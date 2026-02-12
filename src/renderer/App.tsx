@@ -1,7 +1,7 @@
 /**
  * SYNC Desktop - Main App Component
  *
- * Handles authentication and the three modes: avatar, chat, and voice
+ * Handles authentication, permissions setup, and the three modes: avatar, chat, and voice
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,9 +10,10 @@ import FloatingAvatar from './components/FloatingAvatar';
 import ChatWidget from './components/ChatWidget';
 import VoiceMode from './components/VoiceMode';
 import LoginScreen from './components/LoginScreen';
+import PermissionsSetup from './components/PermissionsSetup';
 
 type WidgetMode = 'avatar' | 'chat' | 'voice';
-type AppState = 'loading' | 'login' | 'authenticated';
+type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('loading');
@@ -20,40 +21,68 @@ export default function App() {
   const [clickCount, setClickCount] = useState(0);
   const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // Check auth status on mount
+  // Check auth and permissions status on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const result = await window.electron.getAuthStatus();
+        const result = await (window as any).electron.getAuthStatus();
         if (result.data?.isAuthenticated) {
+          // Authenticated — check if permissions are granted
+          if ((window as any).electron.platform === 'darwin') {
+            const permResult = await (window as any).electron.checkPermissions();
+            const perms = permResult?.data;
+            if (perms && (!perms.accessibility || !perms.screenCapture)) {
+              // Missing required permissions — show setup
+              setAppState('permissions');
+              (window as any).electron.expandWindow('chat');
+              return;
+            }
+          }
           setAppState('authenticated');
-          // Collapse to avatar size when authenticated
-          window.electron.collapseWindow();
+          (window as any).electron.collapseWindow();
         } else {
           setAppState('login');
-          // Expand to login screen size
-          window.electron.expandWindow('chat'); // Use chat size for login
+          (window as any).electron.expandWindow('chat');
         }
       } catch (error) {
         console.error('Failed to check auth:', error);
         setAppState('login');
-        window.electron.expandWindow('chat');
+        (window as any).electron.expandWindow('chat');
       }
     };
 
     checkAuth();
   }, []);
 
-  // Handle successful login
-  const handleLoginSuccess = useCallback(() => {
+  // Handle successful login — check permissions next
+  const handleLoginSuccess = useCallback(async () => {
+    if ((window as any).electron.platform === 'darwin') {
+      try {
+        const permResult = await (window as any).electron.checkPermissions();
+        const perms = permResult?.data;
+        if (perms && (!perms.accessibility || !perms.screenCapture)) {
+          setAppState('permissions');
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to check permissions:', err);
+      }
+    }
     setAppState('authenticated');
     setMode('avatar');
-    window.electron.collapseWindow();
+    (window as any).electron.collapseWindow();
+  }, []);
+
+  // Handle permissions setup complete
+  const handlePermissionsComplete = useCallback(() => {
+    setAppState('authenticated');
+    setMode('avatar');
+    (window as any).electron.collapseWindow();
   }, []);
 
   // Listen for mode changes from main process
   useEffect(() => {
-    const unsubscribe = window.electron.onModeChange((newMode) => {
+    const unsubscribe = (window as any).electron.onModeChange((newMode: WidgetMode) => {
       setMode(newMode);
     });
 
@@ -73,24 +102,21 @@ export default function App() {
     // Set new timer to process clicks
     const timer = setTimeout(() => {
       if (newCount === 1) {
-        // Single click - open chat
-        window.electron.expandWindow('chat');
+        (window as any).electron.expandWindow('chat');
       } else if (newCount === 2) {
-        // Double click - open voice
-        window.electron.expandWindow('voice');
+        (window as any).electron.expandWindow('voice');
       } else if (newCount >= 3) {
-        // Triple click - open web app
-        window.electron.openExternal('https://app.isyncso.com');
+        (window as any).electron.openExternal('https://app.isyncso.com');
       }
       setClickCount(0);
-    }, 400); // Wait for potential additional clicks
+    }, 400);
 
     setClickTimer(timer);
   }, [clickCount, clickTimer]);
 
   // Handle close/collapse
   const handleClose = useCallback(() => {
-    window.electron.collapseWindow();
+    (window as any).electron.collapseWindow();
     setMode('avatar');
   }, []);
 
@@ -117,6 +143,15 @@ export default function App() {
     return (
       <div className="w-full h-full bg-black">
         <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      </div>
+    );
+  }
+
+  // Show permissions setup if needed
+  if (appState === 'permissions') {
+    return (
+      <div className="w-full h-full mode-chat">
+        <PermissionsSetup onComplete={handlePermissionsComplete} />
       </div>
     );
   }

@@ -93,9 +93,9 @@ export async function requestScreenCapturePermission(): Promise<boolean> {
   const result = await dialog.showMessageBox({
     type: 'info',
     title: 'Screen Recording Permission Required',
-    message: 'SYNC Desktop needs Screen Recording permission for advanced context features.',
-    detail: 'This is optional but enables better understanding of your workflow.\n\nClick "Open Settings" to grant permission.',
-    buttons: ['Open Settings', 'Skip'],
+    message: 'SYNC Desktop needs Screen Recording permission to read window titles and track your activity.',
+    detail: 'Without this permission, SYNC cannot see what you\'re working on.\n\nClick "Open Settings" to grant permission, then restart SYNC Desktop.',
+    buttons: ['Open Settings', 'Later'],
     defaultId: 0,
     cancelId: 1,
   });
@@ -116,14 +116,17 @@ export async function checkAndRequestPermissions(): Promise<PermissionStatus> {
 
   console.log('[permissions] Current status:', status);
 
-  // Only prompt for accessibility (required for core functionality)
+  // Prompt for accessibility (required for window tracking)
   if (!status.accessibility && process.platform === 'darwin') {
     console.log('[permissions] Accessibility not granted, prompting user...');
     await requestAccessibilityPermission();
   }
 
-  // Screen capture is optional, don't prompt automatically
-  // User can enable it from settings if they want advanced features
+  // Prompt for screen recording (required for window titles)
+  if (!status.screenCapture && process.platform === 'darwin') {
+    console.log('[permissions] Screen Recording not granted, prompting user...');
+    await requestScreenCapturePermission();
+  }
 
   return checkPermissions();
 }

@@ -447,13 +447,15 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, async (_event, permission: string) => {
     if (process.platform === 'darwin') {
       if (permission === 'accessibility') {
-        // This will prompt the user to grant accessibility permission
+        // Prompt macOS to show accessibility permission dialog
         systemPreferences.isTrustedAccessibilityClient(true);
+        // Also open System Settings directly
+        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
         return { success: true };
       }
       if (permission === 'screenCapture') {
-        // For screen capture, we need to trigger a capture to prompt
-        // This is handled automatically when we first try to capture
+        // Open System Settings to Screen Recording pane
+        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
         return { success: true };
       }
     }
