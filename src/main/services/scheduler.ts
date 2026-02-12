@@ -320,6 +320,14 @@ export class Scheduler {
     if (task) task.isRunning = true;
 
     try {
+      // Generate/update current hour partial summary before syncing
+      // so the latest activity data is always pushed to cloud
+      try {
+        await this.summaryService.saveOrUpdateCurrentHourSummary();
+      } catch (err) {
+        console.error('[scheduler] Failed to update current hour summary:', err);
+      }
+
       console.log('[scheduler] Running cloud sync');
       await this.onSyncRequest();
       if (task) task.lastRun = new Date();

@@ -9,6 +9,7 @@ import { ActivityLog, HourlySummary } from '../../shared/types';
 import {
   getActivityByDateRange,
   insertHourlySummary,
+  upsertHourlySummary,
   getHourlySummaryByRange,
   getUnsyncedHourlySummaries,
   markHourlySummaryAsSynced,
@@ -191,6 +192,40 @@ export class SummaryService {
   }
 
   /**
+   * Generate or update summary for the current partial hour.
+   * Called before each sync cycle to ensure latest data reaches cloud.
+   * Uses upsert so it updates the existing summary if one exists.
+   */
+  async saveOrUpdateCurrentHourSummary(): Promise<void> {
+    const now = new Date();
+    const hourStart = new Date(now);
+    hourStart.setMinutes(0, 0, 0);
+
+    const summary = this.generateHourlySummary(hourStart);
+    if (!summary || summary.totalMinutes < 1) {
+      console.log('[summary] saveOrUpdate: no data for current hour');
+      return;
+    }
+
+    console.log(`[summary] Upserting current hour: ${hourStart.toISOString()} (${summary.totalMinutes} min, ${summary.appBreakdown.length} apps)`);
+
+    try {
+      upsertHourlySummary({
+        hourStart: summary.hourStart.getTime(),
+        appBreakdown: summary.appBreakdown,
+        totalMinutes: summary.totalMinutes,
+        focusScore: summary.focusScore,
+        ocrText: null,
+        semanticCategory: null,
+        commitments: null,
+        synced: false,
+      });
+    } catch (error) {
+      console.error('[summary] Failed to upsert current hour summary:', error);
+    }
+  }
+
+  /**
    * Generate and save summary for the last completed hour
    */
   async saveLastHourSummary(deepContextData?: { ocrText?: string; semanticCategory?: string; commitments?: any[] }): Promise<number | null> {
@@ -208,7 +243,7 @@ export class SummaryService {
     }
 
     try {
-      const id = insertHourlySummary({
+      upsertHourlySummary({
         hourStart: summary.hourStart.getTime(),
         appBreakdown: summary.appBreakdown,
         totalMinutes: summary.totalMinutes,
@@ -222,7 +257,7 @@ export class SummaryService {
       this.lastSummaryHour = summary.hourStart;
       console.log('[summary] Saved hourly summary with deep context:', summary.hourStart.toISOString());
 
-      return id;
+      return 0;
     } catch (error) {
       console.error('[summary] Failed to save hourly summary:', error);
       return null;
@@ -248,14 +283,13 @@ export class SummaryService {
       appMap.set(activity.appName, (appMap.get(activity.appName) || 0) + seconds);
     }
 
-    // Convert to breakdown array
+    // Convert to breakdown array — include all apps regardless of duration
     const appBreakdown: AppBreakdown[] = [];
     for (const [appName, seconds] of appMap) {
-      const minutes = Math.round(seconds / 60);
-      if (minutes > 0) {
+      if (seconds > 0) {
         appBreakdown.push({
           appName,
-          minutes,
+          minutes: Math.round((seconds / 60) * 10) / 10, // 1 decimal place
           percentage: totalSeconds > 0 ? Math.round((seconds / totalSeconds) * 100) : 0,
           category: this.categorizeApp(appName),
         });

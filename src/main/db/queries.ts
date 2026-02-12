@@ -155,12 +155,15 @@ export function upsertHourlySummary(summary: Omit<HourlySummary, 'id'>): void {
   const db = getDatabase();
 
   const stmt = db.prepare(`
-    INSERT INTO hourly_summaries (hour_start, app_breakdown, total_minutes, focus_score, synced)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO hourly_summaries (hour_start, app_breakdown, total_minutes, focus_score, ocr_text, semantic_category, commitments, synced)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hour_start) DO UPDATE SET
       app_breakdown = excluded.app_breakdown,
       total_minutes = excluded.total_minutes,
       focus_score = excluded.focus_score,
+      ocr_text = COALESCE(excluded.ocr_text, ocr_text),
+      semantic_category = COALESCE(excluded.semantic_category, semantic_category),
+      commitments = COALESCE(excluded.commitments, commitments),
       synced = 0
   `);
 
@@ -169,6 +172,9 @@ export function upsertHourlySummary(summary: Omit<HourlySummary, 'id'>): void {
     JSON.stringify(summary.appBreakdown),
     summary.totalMinutes,
     summary.focusScore,
+    summary.ocrText || null,
+    summary.semanticCategory || null,
+    summary.commitments || null,
     summary.synced ? 1 : 0
   );
 }

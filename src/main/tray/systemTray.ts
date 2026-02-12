@@ -17,7 +17,7 @@ import {
 import { WEB_APP_URL } from '../../shared/constants';
 import { getActivityTracker, setActivityTracker, getCloudSyncService } from '../index';
 import { ActivityTracker } from '../services/activityTracker';
-import { getSettings, updateSettings } from '../store';
+import { getSettings, updateSettings, getUser, clearAuth } from '../store';
 import { checkForUpdates, getUpdateStatus } from '../services/autoUpdater';
 
 // ============================================================================
@@ -155,6 +155,55 @@ export function updateTrayMenu(): void {
         }
       },
     },
+    { type: 'separator' },
+    ...((() => {
+      const user = getUser();
+      if (user) {
+        return [
+          {
+            label: `Signed in as ${user.email}`,
+            enabled: false,
+          },
+          {
+            label: 'Log Out',
+            click: async () => {
+              const { response } = await dialog.showMessageBox({
+                type: 'question',
+                title: 'Log Out',
+                message: 'Are you sure you want to log out?',
+                detail: 'Activity tracking will continue locally, but data won\'t sync until you sign in again.',
+                buttons: ['Cancel', 'Log Out'],
+                defaultId: 0,
+                cancelId: 0,
+              });
+              if (response === 1) {
+                console.log('[tray] User logged out');
+                clearAuth();
+                // Notify renderer
+                const widget = getFloatingWidget();
+                if (widget) {
+                  widget.webContents.send('auth:callback', { success: false, error: 'logged_out' });
+                }
+                updateTrayMenu();
+              }
+            },
+          },
+        ] as Electron.MenuItemConstructorOptions[];
+      } else {
+        return [
+          {
+            label: 'Sign In...',
+            click: () => {
+              const widget = getFloatingWidget();
+              if (widget) {
+                widget.show();
+                widget.focus();
+              }
+            },
+          },
+        ] as Electron.MenuItemConstructorOptions[];
+      }
+    })()),
     { type: 'separator' },
     {
       label: 'Open Web App',

@@ -191,7 +191,7 @@ async function handleDeepLink(url: string) {
           console.log('[main] Generating current hour summary...');
           try {
             await summaryService.saveLastHourSummary();
-            await summaryService.saveCurrentHourSummary();
+            await summaryService.saveOrUpdateCurrentHourSummary();
           } catch (err) {
             console.error('[main] Summary generation error:', err);
           }
@@ -335,7 +335,7 @@ app.whenReady().then(async () => {
     if (cloudSyncService && cloudSyncService.isAuthenticated()) {
       console.log('[main] Startup sync: generating current hour summary and syncing...');
       if (summaryService) {
-        await summaryService.saveCurrentHourSummary().catch(() => {});
+        await summaryService.saveOrUpdateCurrentHourSummary().catch(() => {});
       }
       const result = await cloudSyncService.forceSync();
       console.log('[main] Startup sync result:', result);

@@ -151,7 +151,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   excludedApps: [],
   dataRetentionDays: 30,
   autoSync: true,
-  syncIntervalMinutes: 5,
+  syncIntervalMinutes: 1,
   avatarPosition: 'top-right',
   avatarSize: 'medium',
   showInDock: false,

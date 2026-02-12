@@ -76,7 +76,8 @@ export class CloudSyncService {
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: any,
-    isRetry: boolean = false
+    isRetry: boolean = false,
+    upsert: boolean = false
   ): Promise<SupabaseResponse<T>> {
     const accessToken = getAccessToken();
 
@@ -85,13 +86,21 @@ export class CloudSyncService {
     }
 
     try {
+      // Build Prefer header: upsert needs resolution=merge-duplicates
+      let prefer = 'return=representation';
+      if (method === 'POST') {
+        prefer = upsert
+          ? 'return=minimal,resolution=merge-duplicates'
+          : 'return=minimal';
+      }
+
       const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
         method,
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'Prefer': method === 'POST' ? 'return=minimal' : 'return=representation',
+          'Prefer': prefer,
         },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -102,7 +111,7 @@ export class CloudSyncService {
         const newToken = await refreshAccessToken();
         if (newToken) {
           console.log('[sync] Token refreshed, retrying request');
-          return this.supabaseRequest<T>(endpoint, method, body, true);
+          return this.supabaseRequest<T>(endpoint, method, body, true, upsert);
         } else {
           console.error('[sync] Token refresh failed, cannot retry');
           return { error: { message: 'Authentication expired and refresh failed' } };
@@ -114,13 +123,20 @@ export class CloudSyncService {
         return { error: { message: `API error: ${response.status} - ${errorText}` } };
       }
 
-      // Handle empty responses
-      if (response.status === 201 || response.status === 204) {
+      // Handle empty responses (return=minimal gives no body on 200/201/204)
+      const contentLength = response.headers.get('content-length');
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
         return { data: null as any };
       }
 
-      const data = await response.json();
-      return { data };
+      try {
+        const data = JSON.parse(responseText);
+        return { data };
+      } catch {
+        // Non-JSON response but request succeeded
+        return { data: null as any };
+      }
     } catch (error) {
       return { error: { message: (error as Error).message } };
     }
@@ -201,15 +217,27 @@ export class CloudSyncService {
       return 0;
     }
 
-    console.log(`[sync] Syncing ${unsynced.length} hourly summaries`);
     const user = getUser();
+
+    if (!user?.id) {
+      console.error('[sync] Cannot sync summaries: user.id is missing');
+      this.syncErrors.push('User ID missing - please re-authenticate');
+      return 0;
+    }
+    if (!user?.companyId) {
+      console.error('[sync] Cannot sync summaries: user.companyId is missing (user:', user.email, ')');
+      this.syncErrors.push('Company ID missing for user ' + user.email);
+      return 0;
+    }
+
+    console.log(`[sync] Syncing ${unsynced.length} hourly summaries for user ${user.email} (company: ${user.companyId})`);
     let syncedCount = 0;
 
     for (const summary of unsynced) {
       try {
         const cloudData = {
-          user_id: user?.id,
-          company_id: user?.companyId,
+          user_id: user.id,
+          company_id: user.companyId,
           hour_start: new Date(summary.hourStart).toISOString(),
           app_breakdown: summary.appBreakdown,
           total_minutes: summary.totalMinutes,
@@ -219,10 +247,13 @@ export class CloudSyncService {
           commitments: summary.commitments || null,
         };
 
+        // Use upsert to handle duplicate hours (unique_user_hour constraint)
         const { error } = await this.supabaseRequest(
-          'desktop_activity_logs',
+          'desktop_activity_logs?on_conflict=user_id,hour_start',
           'POST',
-          cloudData
+          cloudData,
+          false,
+          true
         );
 
         if (error) {
@@ -251,15 +282,21 @@ export class CloudSyncService {
       return 0;
     }
 
-    console.log(`[sync] Syncing ${unsynced.length} daily journals`);
     const user = getUser();
+
+    if (!user?.id || !user?.companyId) {
+      console.error('[sync] Cannot sync journals: user data incomplete');
+      return 0;
+    }
+
+    console.log(`[sync] Syncing ${unsynced.length} daily journals`);
     let syncedCount = 0;
 
     for (const journal of unsynced) {
       try {
         const cloudData = {
-          user_id: user?.id,
-          company_id: user?.companyId,
+          user_id: user.id,
+          company_id: user.companyId,
           journal_date: new Date(journal.journalDate).toISOString().split('T')[0],
           overview: journal.overview,
           highlights: journal.highlights,
@@ -270,7 +307,9 @@ export class CloudSyncService {
         const { error } = await this.supabaseRequest(
           'daily_journals?on_conflict=user_id,journal_date',
           'POST',
-          cloudData
+          cloudData,
+          false,
+          true
         );
 
         if (error) {
