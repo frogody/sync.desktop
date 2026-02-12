@@ -9,6 +9,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config';
 import SyncAvatarMini from './SyncAvatarMini';
+import UpdateBanner from './UpdateBanner';
 import { useSyncState } from '../context/SyncStateContext';
 
 // Decode JWT to get user info
@@ -453,6 +454,8 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
 
   return (
     <div className="flex flex-col h-full bg-zinc-900/95">
+      {/* Update notification banner */}
+      <UpdateBanner />
       {/* Header - Matches web app styling */}
       <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10 bg-zinc-900/80">
         <div className="flex items-center gap-3">

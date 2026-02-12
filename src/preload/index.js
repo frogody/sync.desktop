@@ -45,6 +45,26 @@ const electronAPI = {
     getSystemInfo: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.SYSTEM_GET_INFO),
     checkPermissions: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.SYSTEM_CHECK_PERMISSIONS),
     requestPermission: (permission) => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, permission),
+    // Updates
+    checkForUpdates: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.UPDATE_CHECK),
+    downloadUpdate: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.UPDATE_DOWNLOAD),
+    installUpdate: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.UPDATE_INSTALL),
+    getUpdateStatus: () => electron_1.ipcRenderer.invoke(ipcChannels_1.IPC_CHANNELS.UPDATE_STATUS),
+    onUpdateAvailable: (callback) => {
+        const handler = (_event, data) => callback(data);
+        electron_1.ipcRenderer.on(ipcChannels_1.IPC_CHANNELS.UPDATE_AVAILABLE, handler);
+        return () => electron_1.ipcRenderer.removeListener(ipcChannels_1.IPC_CHANNELS.UPDATE_AVAILABLE, handler);
+    },
+    onUpdateProgress: (callback) => {
+        const handler = (_event, data) => callback(data);
+        electron_1.ipcRenderer.on(ipcChannels_1.IPC_CHANNELS.UPDATE_PROGRESS, handler);
+        return () => electron_1.ipcRenderer.removeListener(ipcChannels_1.IPC_CHANNELS.UPDATE_PROGRESS, handler);
+    },
+    onUpdateDownloaded: (callback) => {
+        const handler = (_event, data) => callback(data);
+        electron_1.ipcRenderer.on(ipcChannels_1.IPC_CHANNELS.UPDATE_DOWNLOADED, handler);
+        return () => electron_1.ipcRenderer.removeListener(ipcChannels_1.IPC_CHANNELS.UPDATE_DOWNLOADED, handler);
+    },
     // Platform
     platform: process.platform,
 };

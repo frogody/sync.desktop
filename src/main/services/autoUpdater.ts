@@ -2,18 +2,19 @@
  * Auto-Updater Service
  *
  * Handles automatic updates from GitHub Releases using electron-updater.
+ * Sends events to renderer for in-app update UI.
  */
 
 import { autoUpdater, UpdateCheckResult, UpdateInfo } from 'electron-updater';
-import { dialog, BrowserWindow } from 'electron';
+import { ipcMain, app } from 'electron';
+import { IPC_CHANNELS } from '../../shared/ipcChannels';
 import { getFloatingWidget } from '../windows/floatingWidget';
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-// Configure auto-updater
-autoUpdater.autoDownload = false; // Don't auto-download, let user decide
+autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowDowngrade = false;
 
@@ -22,151 +23,177 @@ autoUpdater.allowDowngrade = false;
 // ============================================================================
 
 let updateAvailable = false;
+let updateDownloaded = false;
 let downloadProgress = 0;
 let updateInfo: UpdateInfo | null = null;
+let isChecking = false;
+let isDownloading = false;
 
 // ============================================================================
-// Event Handlers
+// Helper — send event to renderer
+// ============================================================================
+
+function sendToRenderer(channel: string, data?: any) {
+  const widget = getFloatingWidget();
+  if (widget && !widget.isDestroyed()) {
+    widget.webContents.send(channel, data);
+  }
+}
+
+// ============================================================================
+// electron-updater Event Handlers
 // ============================================================================
 
 autoUpdater.on('checking-for-update', () => {
   console.log('[updater] Checking for updates...');
+  isChecking = true;
 });
 
 autoUpdater.on('update-available', (info) => {
   console.log('[updater] Update available:', info.version);
+  isChecking = false;
   updateAvailable = true;
   updateInfo = info;
 
-  // Notify user
-  promptForUpdate(info);
+  // Notify renderer
+  sendToRenderer(IPC_CHANNELS.UPDATE_AVAILABLE, {
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: info.releaseNotes,
+  });
 });
 
 autoUpdater.on('update-not-available', (info) => {
   console.log('[updater] No updates available. Current version:', info.version);
+  isChecking = false;
   updateAvailable = false;
 });
 
 autoUpdater.on('error', (err) => {
-  console.error('[updater] Error:', err);
+  console.error('[updater] Error:', err.message);
+  isChecking = false;
+  isDownloading = false;
 });
 
 autoUpdater.on('download-progress', (progress) => {
   downloadProgress = progress.percent;
   console.log(`[updater] Download progress: ${progress.percent.toFixed(1)}%`);
 
-  // Notify renderer of progress
-  const widget = getFloatingWidget();
-  if (widget) {
-    widget.webContents.send('updater:progress', progress);
-  }
+  sendToRenderer(IPC_CHANNELS.UPDATE_PROGRESS, {
+    percent: progress.percent,
+    bytesPerSecond: progress.bytesPerSecond,
+    transferred: progress.transferred,
+    total: progress.total,
+  });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('[updater] Update downloaded:', info.version);
+  isDownloading = false;
+  updateDownloaded = true;
 
-  // Prompt to restart
-  promptForRestart(info);
+  sendToRenderer(IPC_CHANNELS.UPDATE_DOWNLOADED, {
+    version: info.version,
+  });
 });
+
+// ============================================================================
+// IPC Handlers
+// ============================================================================
+
+function registerUpdateIpcHandlers() {
+  ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return {
+        success: true,
+        data: result ? {
+          available: updateAvailable,
+          version: result.updateInfo?.version,
+        } : { available: false },
+      };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+    if (!updateAvailable) {
+      return { success: false, error: 'No update available' };
+    }
+    if (isDownloading) {
+      return { success: false, error: 'Download already in progress' };
+    }
+    try {
+      isDownloading = true;
+      await autoUpdater.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      isDownloading = false;
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, () => {
+    if (!updateDownloaded) {
+      return { success: false, error: 'No update downloaded' };
+    }
+    // Small delay to let the renderer acknowledge
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true);
+    }, 500);
+    return { success: true };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_STATUS, () => {
+    return {
+      success: true,
+      data: {
+        currentVersion: app.getVersion(),
+        available: updateAvailable,
+        downloaded: updateDownloaded,
+        downloading: isDownloading,
+        checking: isChecking,
+        progress: downloadProgress,
+        version: updateInfo?.version || null,
+      },
+    };
+  });
+}
 
 // ============================================================================
 // Public API
 // ============================================================================
 
-/**
- * Check for updates (can be called manually)
- */
 export async function checkForUpdates(): Promise<UpdateCheckResult | null> {
   try {
-    const result = await autoUpdater.checkForUpdates();
-    return result;
+    return await autoUpdater.checkForUpdates();
   } catch (error) {
     console.error('[updater] Check failed:', error);
     return null;
   }
 }
 
-/**
- * Download the available update
- */
-export async function downloadUpdate(): Promise<void> {
-  if (!updateAvailable) {
-    console.log('[updater] No update available to download');
-    return;
-  }
-
-  try {
-    await autoUpdater.downloadUpdate();
-  } catch (error) {
-    console.error('[updater] Download failed:', error);
-  }
-}
-
-/**
- * Install update and restart
- */
-export function installUpdate(): void {
-  autoUpdater.quitAndInstall(false, true);
-}
-
-/**
- * Get current update status
- */
 export function getUpdateStatus() {
   return {
     available: updateAvailable,
+    downloaded: updateDownloaded,
     info: updateInfo,
     progress: downloadProgress,
   };
 }
 
 // ============================================================================
-// UI Prompts
-// ============================================================================
-
-async function promptForUpdate(info: UpdateInfo): Promise<void> {
-  const result = await dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Available',
-    message: `A new version of SYNC Desktop is available!`,
-    detail: `Version ${info.version} is ready to download.\n\nWould you like to download it now?`,
-    buttons: ['Download', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (result.response === 0) {
-    downloadUpdate();
-  }
-}
-
-async function promptForRestart(info: UpdateInfo): Promise<void> {
-  const result = await dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Ready',
-    message: `Version ${info.version} has been downloaded.`,
-    detail: 'The update will be installed when you restart SYNC Desktop.\n\nWould you like to restart now?',
-    buttons: ['Restart Now', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (result.response === 0) {
-    installUpdate();
-  }
-}
-
-// ============================================================================
 // Initialization
 // ============================================================================
 
-/**
- * Initialize auto-updater and check for updates
- */
 export function initAutoUpdater(): void {
-  // Only run in production
+  // Register IPC handlers always (so renderer can call them)
+  registerUpdateIpcHandlers();
+
+  // Only auto-check in production
   if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
-    console.log('[updater] Skipping in development mode');
+    console.log('[updater] Skipping auto-check in development mode');
     return;
   }
 
@@ -175,9 +202,9 @@ export function initAutoUpdater(): void {
   // Check for updates on startup (after a delay)
   setTimeout(() => {
     checkForUpdates();
-  }, 10000); // Wait 10 seconds after startup
+  }, 10000);
 
-  // Check for updates every 4 hours
+  // Check every 4 hours
   setInterval(() => {
     checkForUpdates();
   }, 4 * 60 * 60 * 1000);

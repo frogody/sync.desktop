@@ -57,6 +57,15 @@ export const IPC_CHANNELS = {
   JOURNAL_GET_TODAY: 'journal:get-today',
   JOURNAL_GET_HISTORY: 'journal:get-history',
 
+  // Updates
+  UPDATE_CHECK: 'update:check',
+  UPDATE_DOWNLOAD: 'update:download',
+  UPDATE_INSTALL: 'update:install',
+  UPDATE_STATUS: 'update:status',
+  UPDATE_AVAILABLE: 'update:available',
+  UPDATE_PROGRESS: 'update:progress',
+  UPDATE_DOWNLOADED: 'update:downloaded',
+
   // Deep Context
   DEEP_CONTEXT_STATUS: 'deep-context:status',
   DEEP_CONTEXT_GET_COMMITMENTS: 'deep-context:get-commitments',
