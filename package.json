@@ -1,6 +1,6 @@
 {
   "name": "sync-desktop",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "SYNC Desktop Companion - Activity tracker and AI assistant for app.isyncso.com",
   "main": "dist/main/index.js",
   "author": "iSyncSO",
@@ -15,8 +15,8 @@
     "build:renderer": "vite build",
     "start": "electron .",
     "electron:dev": "wait-on tcp:5173 && electron .",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "package": "electron-builder build --mac --win --publish never",
     "package:mac": "electron-builder build --mac --publish never",
     "package:win": "electron-builder build --win --publish never"
@@ -50,7 +50,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
-    "vitest": "^1.6.0",
+    "vitest": "^4.0.18",
     "wait-on": "^8.0.1"
   },
   "build": {

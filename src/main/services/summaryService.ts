@@ -152,7 +152,7 @@ export class SummaryService {
   /**
    * Generate and save summary for the last completed hour
    */
-  async saveLastHourSummary(): Promise<number | null> {
+  async saveLastHourSummary(deepContextData?: { ocrText?: string; semanticCategory?: string; commitments?: any[] }): Promise<number | null> {
     const summary = this.generateLastHourSummary();
 
     if (!summary) {
@@ -172,11 +172,14 @@ export class SummaryService {
         appBreakdown: summary.appBreakdown,
         totalMinutes: summary.totalMinutes,
         focusScore: summary.focusScore,
+        ocrText: deepContextData?.ocrText || null,
+        semanticCategory: deepContextData?.semanticCategory || null,
+        commitments: deepContextData?.commitments ? JSON.stringify(deepContextData.commitments) : null,
         synced: false,
       });
 
       this.lastSummaryHour = summary.hourStart;
-      console.log('[summary] Saved hourly summary:', summary.hourStart.toISOString());
+      console.log('[summary] Saved hourly summary with deep context:', summary.hourStart.toISOString());
 
       return id;
     } catch (error) {

@@ -27,6 +27,9 @@ export interface HourlySummary {
   appBreakdown: AppBreakdownItem[];
   totalMinutes: number;
   focusScore: number;
+  ocrText?: string | null;
+  semanticCategory?: string | null;
+  commitments?: string | null;
   synced: boolean;
 }
 

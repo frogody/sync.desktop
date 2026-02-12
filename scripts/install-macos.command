@@ -22,15 +22,15 @@ echo ""
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
     echo -e "${GREEN}✓${NC} Detected Apple Silicon (M1/M2/M3)"
-    DMG_NAME="SYNC.Desktop-1.0.0-arm64.dmg"
+    DMG_NAME="SYNC.Desktop-2.0.0-arm64.dmg"
 else
     echo -e "${GREEN}✓${NC} Detected Intel Mac"
-    DMG_NAME="SYNC.Desktop-1.0.0.dmg"
+    DMG_NAME="SYNC.Desktop-2.0.0.dmg"
 fi
 
-DOWNLOAD_URL="https://github.com/frogody/sync.desktop/releases/download/v1.0.0/${DMG_NAME}"
+DOWNLOAD_URL="https://github.com/frogody/sync.desktop/releases/download/v2.0.0/${DMG_NAME}"
 DOWNLOAD_PATH="/tmp/${DMG_NAME}"
-MOUNT_POINT="/Volumes/SYNC Desktop 1.0.0"
+MOUNT_POINT="/Volumes/SYNC Desktop 2.0.0"
 APP_NAME="SYNC Desktop.app"
 INSTALL_PATH="/Applications/${APP_NAME}"
 

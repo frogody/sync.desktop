@@ -33,6 +33,8 @@ import {
   setUser,
   setAuthState,
   clearAuth,
+  getTogetherApiKey,
+  setTogetherApiKey,
 } from '../store';
 
 // Supabase config for fetching user info
@@ -328,6 +330,37 @@ export function setupIpcHandlers(
     try {
       const newSettings = updateSettings(updates);
       return { success: true, data: newSettings };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_SET_API_KEY, (_event, key: string | null) => {
+    try {
+      setTogetherApiKey(key);
+
+      // Update the semantic analyzer with the new key
+      const deepContext = getDeepContextManager();
+      if (deepContext) {
+        deepContext.updateSettings({});
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_API_KEY_STATUS, () => {
+    try {
+      const key = getTogetherApiKey();
+      return {
+        success: true,
+        data: {
+          hasKey: !!key,
+          keyPreview: key ? `${key.substring(0, 8)}...` : null
+        }
+      };
     } catch (error) {
       return { success: false, error: String(error) };
     }

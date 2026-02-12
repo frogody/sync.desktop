@@ -150,6 +150,14 @@ function runMigrations(): void {
       `,
     },
     {
+      name: '003_add_deep_context_columns',
+      sql: `
+        ALTER TABLE hourly_summaries ADD COLUMN ocr_text TEXT;
+        ALTER TABLE hourly_summaries ADD COLUMN semantic_category TEXT;
+        ALTER TABLE hourly_summaries ADD COLUMN commitments TEXT; -- JSON
+      `,
+    },
+    {
       name: '003_update_timestamp_columns',
       sql: `
         -- Update hourly_summaries to use INTEGER timestamps
@@ -311,6 +319,39 @@ function runMigrations(): void {
         INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('deep_context_enabled', 'true');
         INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('capture_interval_ms', '30000');
         INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('last_commitment_check', NULL);
+      `,
+    },
+    {
+      name: '005_context_events',
+      sql: `
+        -- Unified context events table for accessibility-based deep context engine
+        CREATE TABLE IF NOT EXISTS context_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp INTEGER NOT NULL,
+          event_type TEXT NOT NULL,
+          source_application TEXT NOT NULL,
+          source_window_title TEXT,
+          source_url TEXT,
+          source_file_path TEXT,
+          summary TEXT,
+          entities TEXT,
+          intent TEXT,
+          commitments TEXT,
+          skill_signals TEXT,
+          confidence REAL DEFAULT 0.5,
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_context_events_timestamp ON context_events(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_context_events_type ON context_events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_context_events_app ON context_events(source_application);
+        CREATE INDEX IF NOT EXISTS idx_context_events_synced ON context_events(synced);
+
+        -- Settings for deep context engine
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('deep_context_engine_enabled', 'true');
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('deep_context_capture_interval_ms', '15000');
       `,
     },
   ];

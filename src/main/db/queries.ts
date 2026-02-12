@@ -133,8 +133,8 @@ export function insertHourlySummary(
   const db = getDatabase();
 
   const stmt = db.prepare(`
-    INSERT INTO hourly_summaries (hour_start, app_breakdown, total_minutes, focus_score, synced)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO hourly_summaries (hour_start, app_breakdown, total_minutes, focus_score, ocr_text, semantic_category, commitments, synced)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -142,6 +142,9 @@ export function insertHourlySummary(
     JSON.stringify(summary.appBreakdown),
     summary.totalMinutes,
     summary.focusScore,
+    summary.ocrText || null,
+    summary.semanticCategory || null,
+    summary.commitments || null,
     summary.synced ? 1 : 0
   );
 
@@ -178,7 +181,9 @@ export function getHourlySummaryByRange(
 
   const stmt = db.prepare(`
     SELECT id, hour_start as hourStart, app_breakdown as appBreakdown,
-           total_minutes as totalMinutes, focus_score as focusScore, synced
+           total_minutes as totalMinutes, focus_score as focusScore,
+           ocr_text as ocrText, semantic_category as semanticCategory,
+           commitments, synced
     FROM hourly_summaries
     WHERE hour_start >= ? AND hour_start < ?
     ORDER BY hour_start ASC
@@ -198,7 +203,9 @@ export function getUnsyncedHourlySummaries(limit: number = 50): HourlySummary[] 
 
   const stmt = db.prepare(`
     SELECT id, hour_start as hourStart, app_breakdown as appBreakdown,
-           total_minutes as totalMinutes, focus_score as focusScore, synced
+           total_minutes as totalMinutes, focus_score as focusScore,
+           ocr_text as ocrText, semantic_category as semanticCategory,
+           commitments, synced
     FROM hourly_summaries
     WHERE synced = 0
     ORDER BY hour_start ASC

@@ -10,6 +10,7 @@
 
 import { SummaryService } from './summaryService';
 import { JournalService } from './journalService';
+import { DeepContextManager } from './deepContextManager';
 import { cleanupOldData } from '../db/queries';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
@@ -31,15 +32,17 @@ interface ScheduledTask {
 export class Scheduler {
   private summaryService: SummaryService;
   private journalService: JournalService;
+  private deepContextManager: DeepContextManager | null = null;
   private tasks: Map<string, ScheduledTask> = new Map();
   private isRunning: boolean = false;
 
   // Callbacks for cloud sync (will be set by CloudSyncService)
   private onSyncRequest: (() => Promise<void>) | null = null;
 
-  constructor(summaryService: SummaryService, journalService: JournalService) {
+  constructor(summaryService: SummaryService, journalService: JournalService, deepContextManager?: DeepContextManager) {
     this.summaryService = summaryService;
     this.journalService = journalService;
+    this.deepContextManager = deepContextManager || null;
   }
 
   // ============================================================================
@@ -234,7 +237,26 @@ export class Scheduler {
 
     try {
       console.log('[scheduler] Running hourly summary generation');
-      await this.summaryService.saveLastHourSummary();
+
+      // Get deep context data if available
+      let deepContextData;
+      if (this.deepContextManager?.isRunning()) {
+        try {
+          const contextResult = this.deepContextManager.getLastHourDeepContext();
+          deepContextData = contextResult || undefined; // Convert null to undefined
+          if (deepContextData) {
+            console.log('[scheduler] Including deep context:', {
+              hasOcr: !!deepContextData.ocrText,
+              category: deepContextData.semanticCategory,
+              commitments: deepContextData.commitments?.length || 0,
+            });
+          }
+        } catch (error) {
+          console.error('[scheduler] Failed to get deep context:', error);
+        }
+      }
+
+      await this.summaryService.saveLastHourSummary(deepContextData);
       if (task) task.lastRun = new Date();
       console.log('[scheduler] Hourly summary completed');
     } catch (error) {

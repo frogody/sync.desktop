@@ -161,6 +161,7 @@ export class CloudSyncService {
       console.log('[sync] Sync completed:', result.syncedItems);
 
       if (this.syncErrors.length > 0) {
+        console.error('[sync] Sync errors:', this.syncErrors);
         result.success = false;
         result.error = this.syncErrors.join('; ');
       }
@@ -198,6 +199,9 @@ export class CloudSyncService {
           app_breakdown: summary.appBreakdown,
           total_minutes: summary.totalMinutes,
           focus_score: summary.focusScore,
+          ocr_text: summary.ocrText || null,
+          semantic_category: summary.semanticCategory || null,
+          commitments: summary.commitments || null,
         };
 
         const { error } = await this.supabaseRequest(

@@ -81,6 +81,9 @@ export class DeepContextManager extends EventEmitter {
     const apiKey = getTogetherApiKey();
     if (apiKey) {
       this.semanticAnalyzer.setApiKey(apiKey);
+      console.log('[deepContext] Together API key configured (length:', apiKey.length, ')');
+    } else {
+      console.log('[deepContext] No Together API key found - using quick analysis only');
     }
 
     // Listen for capture events
@@ -824,5 +827,100 @@ export class DeepContextManager extends EventEmitter {
       SET status = 'dismissed'
       WHERE id = ?
     `).run(commitmentId);
+  }
+
+  /**
+   * Get aggregated deep context data for the last completed hour
+   * Used by summaryService to include OCR text, semantic categories, and commitments
+   */
+  getLastHourDeepContext(): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
+    const db = getDatabase();
+
+    // Calculate last hour boundaries
+    const now = new Date();
+    const lastHour = new Date(now);
+    lastHour.setHours(lastHour.getHours() - 1);
+    lastHour.setMinutes(0, 0, 0);
+
+    const hourStart = lastHour.getTime();
+    const hourEnd = hourStart + 60 * 60 * 1000;
+
+    // Get all screen captures from the last hour
+    const captures = db
+      .prepare(`
+        SELECT text_content, analysis FROM screen_captures
+        WHERE timestamp >= ? AND timestamp < ?
+        ORDER BY timestamp ASC
+      `)
+      .all(hourStart, hourEnd) as Array<{
+        text_content: string | null;
+        analysis: string | null;
+      }>;
+
+    if (captures.length === 0) {
+      return null;
+    }
+
+    // Aggregate OCR text (sample, don't include everything to save space)
+    const allText = captures
+      .map(c => c.text_content)
+      .filter(t => t && t.length > 20)
+      .join(' ');
+    const ocrText = allText.length > 500 ? allText.substring(0, 500) + '...' : allText;
+
+    // Find most common semantic category
+    const categories = new Map<string, number>();
+    for (const capture of captures) {
+      if (capture.analysis) {
+        try {
+          const analysis = JSON.parse(capture.analysis);
+          const category = analysis.appContext?.activity;
+          if (category) {
+            categories.set(category, (categories.get(category) || 0) + 1);
+          }
+        } catch (error) {
+          // Skip invalid JSON
+        }
+      }
+    }
+
+    let semanticCategory: string | undefined;
+    let maxCount = 0;
+    for (const [category, count] of categories) {
+      if (count > maxCount) {
+        maxCount = count;
+        semanticCategory = category;
+      }
+    }
+
+    // Get commitments detected during this hour
+    const commitmentRows = db
+      .prepare(`
+        SELECT text, type, recipient, deadline, confidence FROM commitments
+        WHERE detected_at >= ? AND detected_at < ?
+        ORDER BY confidence DESC
+        LIMIT 10
+      `)
+      .all(hourStart, hourEnd) as Array<{
+        text: string;
+        type: string;
+        recipient: string | null;
+        deadline: number | null;
+        confidence: number;
+      }>;
+
+    const commitments = commitmentRows.map(c => ({
+      text: c.text,
+      type: c.type,
+      recipient: c.recipient,
+      deadline: c.deadline,
+      confidence: c.confidence,
+    }));
+
+    return {
+      ocrText: ocrText || undefined,
+      semanticCategory,
+      commitments: commitments.length > 0 ? commitments : undefined,
+    };
   }
 }

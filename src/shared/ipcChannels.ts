@@ -39,6 +39,8 @@ export const IPC_CHANNELS = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
   SETTINGS_RESET: 'settings:reset',
+  SETTINGS_SET_API_KEY: 'settings:set-api-key',
+  SETTINGS_GET_API_KEY_STATUS: 'settings:get-api-key-status',
 
   // Cloud Sync
   CLOUD_SYNC_NOW: 'cloud:sync-now',

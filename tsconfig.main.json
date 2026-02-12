@@ -16,6 +16,6 @@
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/main/**/*", "src/shared/**/*", "src/preload/**/*"],
+  "include": ["src/main/**/*", "src/shared/**/*", "src/preload/**/*", "src/deep-context/**/*"],
   "exclude": ["node_modules", "dist", "src/renderer/**/*"]
 }
