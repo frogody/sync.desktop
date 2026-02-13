@@ -85,6 +85,25 @@ const APP_ACTIVITY_MAP: Record<string, ActivityType> = {
   'arc': 'browsing',
   'brave': 'browsing',
   'edge': 'browsing',
+  'opera': 'browsing',
+
+  // Terminal apps
+  'terminal': 'coding',
+  'iterm': 'coding',
+  'warp': 'coding',
+  'hyper': 'coding',
+
+  // Design apps
+  'figma': 'editing_doc',
+  'sketch': 'editing_doc',
+  'canva': 'editing_doc',
+  'adobe photoshop': 'editing_doc',
+  'adobe illustrator': 'editing_doc',
+
+  // Spreadsheets
+  'numbers': 'editing_doc',
+  'excel': 'editing_doc',
+  'google sheets': 'editing_doc',
 };
 
 // ============================================================================

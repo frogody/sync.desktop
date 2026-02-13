@@ -314,7 +314,7 @@ app.whenReady().then(async () => {
   updateTrayMenu();
 
   // Start scheduler for periodic tasks
-  scheduler = new Scheduler(summaryService, journalService, deepContextManager || undefined);
+  scheduler = new Scheduler(summaryService, journalService, deepContextManager || undefined, deepContextEngine || undefined);
   scheduler.setSyncCallback(async () => {
     // Read fresh settings each time (don't use closure-captured value)
     const currentSettings = getSettings();

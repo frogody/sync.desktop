@@ -858,27 +858,64 @@ export class DeepContextManager extends EventEmitter {
     return this.getDeepContextForRange(hourStart, hourEnd);
   }
 
+  // App category map matching summaryService.ts APP_CATEGORIES
+  private static readonly APP_CATEGORIES: Record<string, string> = {
+    'visual studio code': 'Development', 'vs code': 'Development', 'code': 'Development',
+    'xcode': 'Development', 'android studio': 'Development', 'intellij': 'Development',
+    'webstorm': 'Development', 'pycharm': 'Development', 'cursor': 'Development',
+    'terminal': 'Development', 'iterm': 'Development', 'warp': 'Development',
+    'hyper': 'Development', 'vim': 'Development', 'neovim': 'Development',
+    'sublime': 'Development', 'zed': 'Development',
+    'slack': 'Communication', 'discord': 'Communication', 'microsoft teams': 'Communication',
+    'teams': 'Communication', 'messages': 'Communication',
+    'mail': 'Communication', 'outlook': 'Communication', 'gmail': 'Communication',
+    'thunderbird': 'Communication', 'spark': 'Communication',
+    'whatsapp': 'Communication', 'telegram': 'Communication',
+    'zoom': 'Meetings', 'google meet': 'Meetings', 'facetime': 'Meetings',
+    'webex': 'Meetings', 'skype': 'Meetings',
+    'notion': 'Productivity', 'obsidian': 'Productivity', 'microsoft word': 'Productivity',
+    'word': 'Productivity', 'google docs': 'Productivity', 'pages': 'Productivity',
+    'notes': 'Productivity', 'bear': 'Productivity',
+    'numbers': 'Productivity', 'microsoft excel': 'Productivity', 'excel': 'Productivity',
+    'google sheets': 'Productivity',
+    'figma': 'Design', 'sketch': 'Design', 'adobe photoshop': 'Design',
+    'adobe illustrator': 'Design', 'canva': 'Design',
+    'safari': 'Browsing', 'google chrome': 'Browsing', 'chrome': 'Browsing',
+    'firefox': 'Browsing', 'brave': 'Browsing', 'arc': 'Browsing', 'edge': 'Browsing',
+    'opera': 'Browsing',
+    'spotify': 'Entertainment', 'music': 'Entertainment', 'apple music': 'Entertainment',
+    'youtube': 'Entertainment', 'netflix': 'Entertainment',
+    'finder': 'System', 'system preferences': 'System', 'system settings': 'System',
+    'settings': 'System', 'activity monitor': 'System',
+    'calendar': 'Productivity', 'fantastical': 'Productivity',
+  };
+
+  private categorizeApp(appName: string): string {
+    const lowerApp = appName.toLowerCase();
+    for (const [pattern, category] of Object.entries(DeepContextManager.APP_CATEGORIES)) {
+      if (lowerApp.includes(pattern)) {
+        return category;
+      }
+    }
+    return 'Other';
+  }
+
   private getDeepContextForRange(rangeStart: number, rangeEnd: number): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
     const db = getDatabase();
 
     const hourStart = rangeStart;
     const hourEnd = rangeEnd;
 
-    // Get all screen captures from the last hour
+    // Get all screen captures for OCR text
     const captures = db
       .prepare(`
-        SELECT text_content, analysis FROM screen_captures
+        SELECT text_content FROM screen_captures
         WHERE timestamp >= ? AND timestamp < ?
         ORDER BY timestamp ASC
       `)
       .all(hourStart, hourEnd) as Array<{
         text_content: string | null;
-        analysis: string | null;
       }>;
-
-    if (captures.length === 0) {
-      return null;
-    }
 
     // Aggregate OCR text (sample, don't include everything to save space)
     const allText = captures
@@ -887,30 +924,32 @@ export class DeepContextManager extends EventEmitter {
       .join(' ');
     const ocrText = allText.length > 500 ? allText.substring(0, 500) + '...' : allText;
 
-    // Find most common semantic category
-    const categories = new Map<string, number>();
-    for (const capture of captures) {
-      if (capture.analysis) {
-        try {
-          const analysis = JSON.parse(capture.analysis);
-          const category = analysis.appContext?.activity;
-          if (category) {
-            categories.set(category, (categories.get(category) || 0) + 1);
-          }
-        } catch (error) {
-          // Skip invalid JSON
-        }
+    // Derive category breakdown from activity_logs (most reliable source)
+    const activityRows = db
+      .prepare(`
+        SELECT app_name, SUM(duration_seconds) as total_seconds
+        FROM activity_logs
+        WHERE timestamp >= ? AND timestamp < ?
+        GROUP BY app_name
+      `)
+      .all(hourStart, hourEnd) as Array<{
+        app_name: string;
+        total_seconds: number;
+      }>;
+
+    const categoryMinutes: Record<string, number> = {};
+    for (const row of activityRows) {
+      const category = this.categorizeApp(row.app_name);
+      const minutes = Math.round(row.total_seconds / 60);
+      if (minutes > 0) {
+        categoryMinutes[category] = (categoryMinutes[category] || 0) + minutes;
       }
     }
 
-    let semanticCategory: string | undefined;
-    let maxCount = 0;
-    for (const [category, count] of categories) {
-      if (count > maxCount) {
-        maxCount = count;
-        semanticCategory = category;
-      }
-    }
+    // Store as JSON breakdown: {"Development":25,"Browsing":15}
+    const semanticCategory = Object.keys(categoryMinutes).length > 0
+      ? JSON.stringify(categoryMinutes)
+      : undefined;
 
     // Get commitments detected during this hour
     const commitmentRows = db
@@ -935,6 +974,11 @@ export class DeepContextManager extends EventEmitter {
       deadline: c.deadline,
       confidence: c.confidence,
     }));
+
+    // Return null only if we have no data at all
+    if (!ocrText && !semanticCategory && commitments.length === 0) {
+      return null;
+    }
 
     return {
       ocrText: ocrText || undefined,

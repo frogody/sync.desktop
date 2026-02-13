@@ -11,6 +11,7 @@
 import { SummaryService } from './summaryService';
 import { JournalService } from './journalService';
 import { DeepContextManager } from './deepContextManager';
+import { DeepContextEngine } from '../../deep-context';
 import { cleanupOldData } from '../db/queries';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
@@ -33,16 +34,23 @@ export class Scheduler {
   private summaryService: SummaryService;
   private journalService: JournalService;
   private deepContextManager: DeepContextManager | null = null;
+  private deepContextEngine: DeepContextEngine | null = null;
   private tasks: Map<string, ScheduledTask> = new Map();
   private isRunning: boolean = false;
 
   // Callbacks for cloud sync (will be set by CloudSyncService)
   private onSyncRequest: (() => Promise<void>) | null = null;
 
-  constructor(summaryService: SummaryService, journalService: JournalService, deepContextManager?: DeepContextManager) {
+  constructor(
+    summaryService: SummaryService,
+    journalService: JournalService,
+    deepContextManager?: DeepContextManager,
+    deepContextEngine?: DeepContextEngine
+  ) {
     this.summaryService = summaryService;
     this.journalService = journalService;
     this.deepContextManager = deepContextManager || null;
+    this.deepContextEngine = deepContextEngine || null;
   }
 
   // ============================================================================
@@ -239,7 +247,7 @@ export class Scheduler {
       console.log('[scheduler] Running hourly summary generation');
 
       // Get deep context data if available
-      let deepContextData;
+      let deepContextData: { ocrText?: string; semanticCategory?: string; commitments?: any[] } | undefined;
       if (this.deepContextManager?.isRunning()) {
         try {
           const contextResult = this.deepContextManager.getLastHourDeepContext();
@@ -253,6 +261,32 @@ export class Scheduler {
           }
         } catch (error) {
           console.error('[scheduler] Failed to get deep context:', error);
+        }
+      }
+
+      // Merge commitments from accessibility-based DeepContextEngine
+      if (this.deepContextEngine) {
+        try {
+          const now = new Date();
+          const lastHour = new Date(now);
+          lastHour.setHours(lastHour.getHours() - 1);
+          lastHour.setMinutes(0, 0, 0);
+          const engineCommitments = this.deepContextEngine.getCommitments(lastHour.getTime());
+          if (engineCommitments.length > 0) {
+            deepContextData = deepContextData || {};
+            const existing = deepContextData.commitments || [];
+            deepContextData.commitments = [
+              ...existing,
+              ...engineCommitments.map(c => ({
+                text: c.description,
+                type: c.requiredAction || 'other',
+                confidence: 0.8,
+              })),
+            ];
+            console.log(`[scheduler] Merged ${engineCommitments.length} commitments from deep context engine`);
+          }
+        } catch (error) {
+          console.error('[scheduler] Failed to get engine commitments:', error);
         }
       }
 
@@ -324,7 +358,7 @@ export class Scheduler {
       // so the latest activity data is always pushed to cloud
       try {
         // Gather deep context (OCR, semantic category, commitments) for current hour
-        let deepContextData;
+        let deepContextData: { ocrText?: string; semanticCategory?: string; commitments?: any[] } | undefined;
         if (this.deepContextManager?.isRunning()) {
           try {
             deepContextData = this.deepContextManager.getCurrentHourDeepContext() || undefined;
@@ -332,6 +366,31 @@ export class Scheduler {
             console.error('[scheduler] Failed to get current hour deep context:', err);
           }
         }
+
+        // Merge commitments from accessibility-based DeepContextEngine
+        if (this.deepContextEngine) {
+          try {
+            const now = new Date();
+            const currentHour = new Date(now);
+            currentHour.setMinutes(0, 0, 0);
+            const engineCommitments = this.deepContextEngine.getCommitments(currentHour.getTime());
+            if (engineCommitments.length > 0) {
+              deepContextData = deepContextData || {};
+              const existing = deepContextData.commitments || [];
+              deepContextData.commitments = [
+                ...existing,
+                ...engineCommitments.map(c => ({
+                  text: c.description,
+                  type: c.requiredAction || 'other',
+                  confidence: 0.8,
+                })),
+              ];
+            }
+          } catch (err) {
+            console.error('[scheduler] Failed to get engine commitments for sync:', err);
+          }
+        }
+
         await this.summaryService.saveOrUpdateCurrentHourSummary(deepContextData);
       } catch (err) {
         console.error('[scheduler] Failed to update current hour summary:', err);
