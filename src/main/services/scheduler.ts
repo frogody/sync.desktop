@@ -323,7 +323,16 @@ export class Scheduler {
       // Generate/update current hour partial summary before syncing
       // so the latest activity data is always pushed to cloud
       try {
-        await this.summaryService.saveOrUpdateCurrentHourSummary();
+        // Gather deep context (OCR, semantic category, commitments) for current hour
+        let deepContextData;
+        if (this.deepContextManager?.isRunning()) {
+          try {
+            deepContextData = this.deepContextManager.getCurrentHourDeepContext() || undefined;
+          } catch (err) {
+            console.error('[scheduler] Failed to get current hour deep context:', err);
+          }
+        }
+        await this.summaryService.saveOrUpdateCurrentHourSummary(deepContextData);
       } catch (err) {
         console.error('[scheduler] Failed to update current hour summary:', err);
       }

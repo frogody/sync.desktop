@@ -153,7 +153,7 @@ export class SummaryService {
   /**
    * Generate and save summary for the current partial hour (for immediate sync)
    */
-  async saveCurrentHourSummary(): Promise<number | null> {
+  async saveCurrentHourSummary(deepContextData?: { ocrText?: string; semanticCategory?: string; commitments?: any[] }): Promise<number | null> {
     const now = new Date();
     const hourStart = new Date(now);
     hourStart.setMinutes(0, 0, 0);
@@ -177,9 +177,9 @@ export class SummaryService {
         appBreakdown: summary.appBreakdown,
         totalMinutes: summary.totalMinutes,
         focusScore: summary.focusScore,
-        ocrText: null,
-        semanticCategory: null,
-        commitments: null,
+        ocrText: deepContextData?.ocrText || null,
+        semanticCategory: deepContextData?.semanticCategory || null,
+        commitments: deepContextData?.commitments ? JSON.stringify(deepContextData.commitments) : null,
         synced: false,
       });
 
@@ -196,7 +196,7 @@ export class SummaryService {
    * Called before each sync cycle to ensure latest data reaches cloud.
    * Uses upsert so it updates the existing summary if one exists.
    */
-  async saveOrUpdateCurrentHourSummary(): Promise<void> {
+  async saveOrUpdateCurrentHourSummary(deepContextData?: { ocrText?: string; semanticCategory?: string; commitments?: any[] }): Promise<void> {
     const now = new Date();
     const hourStart = new Date(now);
     hourStart.setMinutes(0, 0, 0);
@@ -207,7 +207,7 @@ export class SummaryService {
       return;
     }
 
-    console.log(`[summary] Upserting current hour: ${hourStart.toISOString()} (${summary.totalMinutes} min, ${summary.appBreakdown.length} apps)`);
+    console.log(`[summary] Upserting current hour: ${hourStart.toISOString()} (${summary.totalMinutes} min, ${summary.appBreakdown.length} apps, deepContext: ${!!deepContextData})`);
 
     try {
       upsertHourlySummary({
@@ -215,9 +215,9 @@ export class SummaryService {
         appBreakdown: summary.appBreakdown,
         totalMinutes: summary.totalMinutes,
         focusScore: summary.focusScore,
-        ocrText: null,
-        semanticCategory: null,
-        commitments: null,
+        ocrText: deepContextData?.ocrText || null,
+        semanticCategory: deepContextData?.semanticCategory || null,
+        commitments: deepContextData?.commitments ? JSON.stringify(deepContextData.commitments) : null,
         synced: false,
       });
     } catch (error) {

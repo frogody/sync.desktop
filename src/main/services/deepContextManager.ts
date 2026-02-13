@@ -833,9 +833,19 @@ export class DeepContextManager extends EventEmitter {
    * Get aggregated deep context data for the last completed hour
    * Used by summaryService to include OCR text, semantic categories, and commitments
    */
-  getLastHourDeepContext(): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
-    const db = getDatabase();
+  /**
+   * Get aggregated deep context data for the current (partial) hour.
+   * Used by saveOrUpdateCurrentHourSummary() before each sync cycle.
+   */
+  getCurrentHourDeepContext(): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
+    const now = new Date();
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
 
+    return this.getDeepContextForRange(currentHour.getTime(), now.getTime());
+  }
+
+  getLastHourDeepContext(): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
     // Calculate last hour boundaries
     const now = new Date();
     const lastHour = new Date(now);
@@ -844,6 +854,15 @@ export class DeepContextManager extends EventEmitter {
 
     const hourStart = lastHour.getTime();
     const hourEnd = hourStart + 60 * 60 * 1000;
+
+    return this.getDeepContextForRange(hourStart, hourEnd);
+  }
+
+  private getDeepContextForRange(rangeStart: number, rangeEnd: number): { ocrText?: string; semanticCategory?: string; commitments?: any[] } | null {
+    const db = getDatabase();
+
+    const hourStart = rangeStart;
+    const hourEnd = rangeEnd;
 
     // Get all screen captures from the last hour
     const captures = db
