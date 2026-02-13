@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import ApplicationServices
 
 /// A transparent, non-activating overlay panel positioned at the notch.
 /// Uses NSPanel to float above all windows without stealing focus.
@@ -146,6 +147,7 @@ final class NotchOverlayPanel: NSPanel {
 
     private func installClickOutsideMonitor() {
         guard clickOutsideMonitor == nil else { return }
+        guard AXIsProcessTrusted() else { return }
 
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self else { return }

@@ -11,7 +11,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
-import { app, shell } from 'electron';
+import { app, shell, systemPreferences } from 'electron';
 import { getAccessToken, getUser } from '../store';
 import { getContextManager, getCloudSyncService, getActivityTracker } from '../index';
 import { getFloatingWidget, setNativeWidgetActive } from '../windows/floatingWidget';
@@ -52,6 +52,13 @@ export class NotchBridge {
     if (!fs.existsSync(widgetPath)) {
       console.log('[notch-bridge] SYNCWidget not found at:', widgetPath);
       console.log('[notch-bridge] Falling back to BrowserWindow widget');
+      return;
+    }
+
+    // Don't launch the native widget without accessibility permission —
+    // it uses NSEvent.addGlobalMonitorForEvents which triggers the macOS dialog
+    if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
+      console.log('[notch-bridge] Accessibility not granted — skipping native widget');
       return;
     }
 

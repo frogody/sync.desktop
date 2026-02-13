@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 
 /// Intercepts system-wide keyboard events using CGEventTap when chat mode is active.
@@ -17,6 +18,12 @@ final class KeyboardCapture {
 
     func start() {
         guard !isCapturing else { return }
+
+        // Don't attempt without accessibility — CGEvent.tapCreate triggers the dialog
+        guard AXIsProcessTrusted() else {
+            print("[keyboard] Accessibility not granted — skipping keyboard capture")
+            return
+        }
 
         let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.flagsChanged.rawValue)

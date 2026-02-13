@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 /// Tracks global mouse position relative to the notch area.
 /// Reports proximity intensity (0-1) and handles click detection.
@@ -28,6 +29,11 @@ final class MouseMonitor {
     }
 
     func start() {
+        // Don't start global monitoring without accessibility — it triggers the macOS dialog
+        if !AXIsProcessTrusted() {
+            return
+        }
+
         // Global monitor: captures events when our app is NOT focused
         globalMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDown, .pressure]
