@@ -14,6 +14,10 @@
     <key>com.apple.security.network.client</key>
     <true/>
 
+    <!-- Microphone access for voice mode -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
     <!-- Required for Electron to work properly -->
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>

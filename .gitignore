@@ -41,3 +41,7 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Swift build artifacts
+native/SYNCWidget/.build/
+native/SYNCWidget/build/

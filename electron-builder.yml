@@ -100,6 +100,10 @@ extraResources:
     to: assets/
     filter:
       - "**/*"
+  - from: native/SYNCWidget/build/SYNCWidget.app
+    to: SYNCWidget.app
+    filter:
+      - "**/*"
 
 # After sign hook for notarization
 afterSign: scripts/notarize.js

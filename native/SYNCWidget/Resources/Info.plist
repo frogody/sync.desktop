@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.isyncso.sync-widget</string>
+    <key>CFBundleName</key>
+    <string>SYNCWidget</string>
+    <key>CFBundleDisplayName</key>
+    <string>SYNC Widget</string>
+    <key>CFBundleExecutable</key>
+    <string>SYNCWidget</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>SYNC Desktop needs microphone access for voice conversations.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>SYNC Desktop uses speech recognition for voice input.</string>
+</dict>
+</plist>

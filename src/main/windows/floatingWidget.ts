@@ -20,6 +20,15 @@ import { WidgetMode } from '../../shared/types';
 
 let floatingWidget: BrowserWindow | null = null;
 let currentMode: WidgetMode = 'avatar';
+// When true, the native notch widget is active and this widget stays hidden
+let nativeWidgetActive: boolean = false;
+
+export function setNativeWidgetActive(active: boolean): void {
+  nativeWidgetActive = active;
+  if (active && floatingWidget && !floatingWidget.isDestroyed()) {
+    floatingWidget.hide();
+  }
+}
 
 // ============================================================================
 // Window Creation
@@ -104,7 +113,7 @@ export function getCurrentMode(): WidgetMode {
 }
 
 export function expandToChat(): void {
-  if (!floatingWidget) return;
+  if (!floatingWidget || nativeWidgetActive) return;
 
   currentMode = 'chat';
 
@@ -146,7 +155,7 @@ export function expandToChat(): void {
 }
 
 export function expandToVoice(): void {
-  if (!floatingWidget) return;
+  if (!floatingWidget || nativeWidgetActive) return;
 
   currentMode = 'voice';
 
@@ -186,7 +195,7 @@ export function expandToVoice(): void {
 }
 
 export function collapseToAvatar(): void {
-  if (!floatingWidget) return;
+  if (!floatingWidget || nativeWidgetActive) return;
 
   currentMode = 'avatar';
 
@@ -212,7 +221,7 @@ export function collapseToAvatar(): void {
 }
 
 export function toggleWidget(): void {
-  if (!floatingWidget) return;
+  if (!floatingWidget || nativeWidgetActive) return;
 
   if (floatingWidget.isVisible()) {
     floatingWidget.hide();

@@ -382,6 +382,28 @@ export class ActivityTracker extends EventEmitter {
   }
 
   /**
+   * Dynamically change the polling interval (e.g. for context boost).
+   * Restarts the internal timer with the new interval.
+   */
+  setPollInterval(ms: number): void {
+    if (!this.isRunning) return;
+
+    const clamped = Math.max(500, Math.min(ms, 60000));
+    if (clamped === this.pollInterval) return;
+
+    console.log(`[activity] Changing poll interval: ${this.pollInterval}ms → ${clamped}ms`);
+    this.pollInterval = clamped;
+
+    // Restart the timer with the new interval
+    if (this.interval) {
+      clearInterval(this.interval);
+    }
+    this.interval = setInterval(() => {
+      this.poll();
+    }, clamped);
+  }
+
+  /**
    * Check if tracking is active
    */
   isActive(): boolean {
