@@ -64,7 +64,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  companyId: string;
+  companyId: string | null;
   avatarUrl?: string;
 }
 

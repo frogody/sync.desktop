@@ -9,7 +9,7 @@ import { SummaryService } from './summaryService';
 import { JournalService } from './journalService';
 import { HourlySummary, DailyJournal, User } from '../../shared/types';
 import { getUnsyncedActivity, markActivitySynced } from '../db/queries';
-import { getAccessToken, getUser } from '../store';
+import { getAccessToken, getUser, setUser } from '../store';
 import { refreshAccessToken } from './authUtils';
 
 // ============================================================================
@@ -225,19 +225,27 @@ export class CloudSyncService {
       return 0;
     }
     if (!user?.companyId) {
-      console.error('[sync] Cannot sync summaries: user.companyId is missing (user:', user.email, ')');
-      this.syncErrors.push('Company ID missing for user ' + user.email);
-      return 0;
+      console.log('[sync] companyId missing for', user?.email, '— attempting to re-fetch user info...');
+      const refreshedUser = await this.refreshUserInfo();
+      if (refreshedUser?.companyId) {
+        console.log('[sync] User info refreshed, companyId:', refreshedUser.companyId);
+      } else {
+        console.error('[sync] Cannot sync summaries: user.companyId still missing after refresh');
+        this.syncErrors.push('Company ID missing for user ' + (user?.email || 'unknown') + ' — please sign out and sign in again');
+        return 0;
+      }
     }
 
-    console.log(`[sync] Syncing ${unsynced.length} hourly summaries for user ${user.email} (company: ${user.companyId})`);
+    // Re-read user after potential refresh
+    const currentUser = getUser()!;
+    console.log(`[sync] Syncing ${unsynced.length} hourly summaries for user ${currentUser.email} (company: ${currentUser.companyId})`);
     let syncedCount = 0;
 
     for (const summary of unsynced) {
       try {
         const cloudData = {
-          user_id: user.id,
-          company_id: user.companyId,
+          user_id: currentUser.id,
+          company_id: currentUser.companyId,
           hour_start: new Date(summary.hourStart).toISOString(),
           app_breakdown: summary.appBreakdown,
           total_minutes: summary.totalMinutes,
@@ -285,18 +293,24 @@ export class CloudSyncService {
     const user = getUser();
 
     if (!user?.id || !user?.companyId) {
-      console.error('[sync] Cannot sync journals: user data incomplete');
-      return 0;
+      console.log('[sync] User data incomplete for journals, attempting refresh...');
+      const refreshedUser = await this.refreshUserInfo();
+      if (!refreshedUser?.id || !refreshedUser?.companyId) {
+        console.error('[sync] Cannot sync journals: user data still incomplete after refresh');
+        return 0;
+      }
     }
 
-    console.log(`[sync] Syncing ${unsynced.length} daily journals`);
+    // Re-read user after potential refresh
+    const currentUser = getUser()!;
+    console.log(`[sync] Syncing ${unsynced.length} daily journals for user ${currentUser.email} (company: ${currentUser.companyId})`);
     let syncedCount = 0;
 
     for (const journal of unsynced) {
       try {
         const cloudData = {
-          user_id: user.id,
-          company_id: user.companyId,
+          user_id: currentUser.id,
+          company_id: currentUser.companyId,
           journal_date: new Date(journal.journalDate).toISOString().split('T')[0],
           overview: journal.overview,
           highlights: journal.highlights,
@@ -326,6 +340,82 @@ export class CloudSyncService {
     }
 
     return syncedCount;
+  }
+
+  // ============================================================================
+  // User Info Refresh
+  // ============================================================================
+
+  /**
+   * Re-fetch user info from Supabase when cached data is stale (e.g. missing companyId).
+   * Updates the local store and returns the refreshed user, or null on failure.
+   */
+  private async refreshUserInfo(): Promise<User | null> {
+    const accessToken = getAccessToken();
+    if (!accessToken) return null;
+
+    try {
+      // 1. Get auth user from Supabase Auth
+      const authResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!authResponse.ok) {
+        console.error('[sync] refreshUserInfo: auth fetch failed:', authResponse.status);
+        return null;
+      }
+
+      const authUser = await authResponse.json();
+
+      // 2. Get user record from users table for company_id
+      const userResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${authUser.id}&select=id,email,full_name,company_id`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      let userInfo: User;
+      if (userResponse.ok) {
+        const users = await userResponse.json();
+        if (users && users.length > 0) {
+          userInfo = {
+            id: users[0].id,
+            email: users[0].email,
+            name: users[0].full_name || authUser.email?.split('@')[0] || 'User',
+            companyId: users[0].company_id || null,
+          };
+        } else {
+          userInfo = {
+            id: authUser.id,
+            email: authUser.email,
+            name: authUser.email?.split('@')[0] || 'User',
+            companyId: null,
+          };
+        }
+      } else {
+        userInfo = {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+          companyId: authUser.user_metadata?.company_id || null,
+        };
+      }
+
+      // 3. Update the local store
+      setUser(userInfo);
+      console.log('[sync] refreshUserInfo: updated user -', userInfo.email, 'companyId:', userInfo.companyId);
+      return userInfo;
+    } catch (error) {
+      console.error('[sync] refreshUserInfo failed:', error);
+      return null;
+    }
   }
 
   // ============================================================================

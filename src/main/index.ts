@@ -365,6 +365,7 @@ app.whenReady().then(async () => {
       const token = getAccessToken();
       const user = getUser();
       if (!token && !user) {
+        // No auth at all — try to recover using refresh token
         console.log('[main] No auth stored, attempting refresh token recovery...');
         const newToken = await refreshToken();
         if (newToken) {
@@ -372,6 +373,17 @@ app.whenReady().then(async () => {
           if (userInfo) {
             setUser(userInfo);
             console.log('[main] Auth recovered via refresh token:', userInfo.email);
+            notchBridge.sendAuthUpdate();
+          }
+        }
+      } else if (token && user && !user.companyId) {
+        // User exists but companyId is stale/missing — re-fetch user info
+        console.log('[main] User cached but companyId missing, re-fetching user info for', user.email);
+        const userInfo = await fetchUserInfo(token);
+        if (userInfo) {
+          setUser(userInfo);
+          console.log('[main] User info refreshed — companyId:', userInfo.companyId || 'still null');
+          if (userInfo.companyId) {
             notchBridge.sendAuthUpdate();
           }
         }
