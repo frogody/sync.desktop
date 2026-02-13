@@ -57,12 +57,11 @@ export class AccessibilityCaptureService extends EventEmitter {
       return;
     }
 
-    // Check accessibility permission
+    // Check accessibility permission — use false to avoid triggering the dialog
     if (process.platform === 'darwin') {
       const hasPermission = systemPreferences.isTrustedAccessibilityClient(false);
       if (!hasPermission) {
-        console.log('[accessibility] No accessibility permission — prompting user');
-        systemPreferences.isTrustedAccessibilityClient(true);
+        console.log('[accessibility] No accessibility permission — skipping capture');
         return;
       }
     }

@@ -453,9 +453,8 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, async (_event, permission: string) => {
     if (process.platform === 'darwin') {
       if (permission === 'accessibility') {
-        // Prompt macOS to show accessibility permission dialog
-        systemPreferences.isTrustedAccessibilityClient(true);
-        // Also open System Settings directly
+        // Open System Settings directly — avoid isTrustedAccessibilityClient(true)
+        // which triggers the native dialog that loops
         shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
         return { success: true };
       }

@@ -33,6 +33,7 @@ interface ActiveWinResult {
   url?: string;
 }
 import { EventEmitter } from 'events';
+import { systemPreferences } from 'electron';
 import { ActivityLog } from '../../shared/types';
 import {
   ACTIVITY_POLL_INTERVAL_MS,
@@ -83,6 +84,7 @@ export class ActivityTracker extends EventEmitter {
 
   // Track current activity for quick access
   private currentActivity: Partial<ActivityLog> | null = null;
+  private permissionWarningLogged: boolean = false;
 
   // ============================================================================
   // Lifecycle
@@ -147,6 +149,17 @@ export class ActivityTracker extends EventEmitter {
   // ============================================================================
 
   private async poll(): Promise<void> {
+    // Check accessibility permission BEFORE calling get-windows to avoid
+    // triggering the macOS permission dialog every 5 seconds.
+    if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
+      if (!this.permissionWarningLogged) {
+        console.warn('[activity] Accessibility permission not granted — skipping window polling');
+        this.permissionWarningLogged = true;
+      }
+      return;
+    }
+    this.permissionWarningLogged = false;
+
     try {
       const getActiveWindow = await loadActiveWindow();
       const window = await getActiveWindow();

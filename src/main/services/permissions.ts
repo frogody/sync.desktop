@@ -64,10 +64,8 @@ export async function requestAccessibilityPermission(): Promise<boolean> {
   });
 
   if (result.response === 0) {
-    // This will prompt macOS to show the accessibility permission dialog
-    systemPreferences.isTrustedAccessibilityClient(true);
-
-    // Also open System Preferences to the Privacy pane
+    // Open System Settings directly — do NOT call isTrustedAccessibilityClient(true)
+    // as that triggers the native dialog which loops annoyingly
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
     return false; // Permission not yet granted, user needs to restart
   }
