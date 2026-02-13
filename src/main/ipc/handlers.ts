@@ -22,6 +22,7 @@ import {
   getJournalService,
   getCloudSyncService,
   getDeepContextManager,
+  getNotchBridge,
 } from '../index';
 import { refreshAccessToken } from '../services/authUtils';
 import { getRecentActivity, getTodayJournal, getJournalHistory } from '../db/queries';
@@ -301,6 +302,11 @@ export function setupIpcHandlers(
         setUser(userInfo);
         user = userInfo;
         console.log('[ipc] User info fetched and saved:', userInfo.email);
+        // Notify notch bridge now that auth is repaired
+        const bridge = getNotchBridge();
+        if (bridge?.running) {
+          bridge.sendAuthUpdate();
+        }
       } else {
         // Token and refresh both failed, clear auth
         console.log('[ipc] Failed to fetch user info after refresh, clearing auth');

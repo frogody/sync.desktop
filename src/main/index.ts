@@ -24,13 +24,16 @@ import { DeepContextManager } from './services/deepContextManager';
 import { DeepContextEngine } from '../deep-context';
 import { checkAndRequestPermissions, checkPermissions } from './services/permissions';
 import { initAutoUpdater } from './services/autoUpdater';
+import { NotchBridge } from './services/notchBridge';
 import { initDatabase } from './db/database';
 import { APP_PROTOCOL, WEB_APP_URL } from '../shared/constants';
 import {
   store,
   StoreSchema,
   getSettings,
+  getAccessToken,
   getAuthState,
+  getUser,
   setAccessToken,
   setRefreshToken,
   setAuthState,
@@ -51,6 +54,7 @@ let scheduler: Scheduler | null = null;
 let cloudSyncService: CloudSyncService | null = null;
 let deepContextManager: DeepContextManager | null = null;
 let deepContextEngine: DeepContextEngine | null = null;
+let notchBridge: NotchBridge | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // ============================================================================
@@ -184,6 +188,11 @@ async function handleDeepLink(url: string) {
         const widget = getFloatingWidget();
         if (widget) {
           widget.webContents.send('auth:callback', { success: true, token });
+        }
+
+        // Forward auth to native notch widget
+        if (notchBridge?.running) {
+          notchBridge.sendAuthUpdate();
         }
 
         // Generate current hour summary and sync immediately
@@ -342,6 +351,37 @@ app.whenReady().then(async () => {
     }
   }, 10000); // Wait 10s for app to settle
 
+  // Launch native notch widget on macOS
+  if (process.platform === 'darwin') {
+    notchBridge = new NotchBridge();
+    try {
+      notchBridge.start();
+      console.log('[main] Notch widget bridge started');
+
+      // Try to recover auth on startup: if access token is missing but
+      // refresh token exists, use it to get a fresh token + user info.
+      // This handles the case where the app restarts after token expiry.
+      const { refreshAccessToken: refreshToken } = await import('./services/authUtils');
+      const token = getAccessToken();
+      const user = getUser();
+      if (!token && !user) {
+        console.log('[main] No auth stored, attempting refresh token recovery...');
+        const newToken = await refreshToken();
+        if (newToken) {
+          const userInfo = await fetchUserInfo(newToken);
+          if (userInfo) {
+            setUser(userInfo);
+            console.log('[main] Auth recovered via refresh token:', userInfo.email);
+            notchBridge.sendAuthUpdate();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[main] Notch widget failed to start, using fallback:', err);
+      notchBridge = null;
+    }
+  }
+
   // Hide dock icon on macOS (we use menu bar/tray instead)
   if (process.platform === 'darwin' && !settings.showInDock) {
     app.dock?.hide();
@@ -366,6 +406,11 @@ app.on('window-all-closed', () => {
 // Cleanup on quit
 app.on('before-quit', () => {
   console.log('[main] Shutting down...');
+
+  // Stop notch widget bridge
+  if (notchBridge) {
+    notchBridge.stop();
+  }
 
   // Stop scheduler first
   if (scheduler) {
@@ -437,4 +482,8 @@ export function getDeepContextManager() {
 
 export function getDeepContextEngine() {
   return deepContextEngine;
+}
+
+export function getNotchBridge() {
+  return notchBridge;
 }

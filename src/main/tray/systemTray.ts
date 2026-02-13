@@ -14,10 +14,10 @@ import {
   expandToVoice,
   collapseToAvatar,
 } from '../windows/floatingWidget';
-import { WEB_APP_URL } from '../../shared/constants';
+import { WEB_APP_URL, AUTH_CALLBACK_PATH } from '../../shared/constants';
 import { getActivityTracker, setActivityTracker, getCloudSyncService } from '../index';
 import { ActivityTracker } from '../services/activityTracker';
-import { getSettings, updateSettings, getUser, clearAuth } from '../store';
+import { getSettings, updateSettings, getUser, clearAuth, setAuthState } from '../store';
 import { checkForUpdates, getUpdateStatus } from '../services/autoUpdater';
 
 // ============================================================================
@@ -194,11 +194,13 @@ export function updateTrayMenu(): void {
           {
             label: 'Sign In...',
             click: () => {
-              const widget = getFloatingWidget();
-              if (widget) {
-                widget.show();
-                widget.focus();
-              }
+              // Open auth URL directly in browser (floating widget may be hidden
+              // when native notch widget is active)
+              const { randomUUID } = require('crypto');
+              const state = randomUUID();
+              setAuthState(state);
+              const authUrl = `${WEB_APP_URL}${AUTH_CALLBACK_PATH}?state=${state}`;
+              shell.openExternal(authUrl);
             },
           },
         ] as Electron.MenuItemConstructorOptions[];
