@@ -23,6 +23,7 @@ import {
   getCloudSyncService,
   getDeepContextManager,
   getNotchBridge,
+  getDeepContextEngine,
 } from '../index';
 import { refreshAccessToken } from '../services/authUtils';
 import { getRecentActivity, getTodayJournal, getJournalHistory } from '../db/queries';
@@ -183,6 +184,26 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.ACTIVITY_GET_CONTEXT_FOR_SYNC, () => {
     try {
+      // Primary: DeepContextEngine (rich context)
+      const deepEngine = getDeepContextEngine();
+      if (deepEngine) {
+        const deepContext = deepEngine.getContextForSync();
+        if (deepContext && deepContext.length > 0) {
+          // Append basic tracker data (focus score, idle state)
+          const contextManager = getContextManager();
+          const basicContext = contextManager?.getContextForSync() || '';
+
+          // Merge: deep context first, then append focus/idle from basic
+          const focusLine = basicContext.split('\n').find(l => l.startsWith('Focus score:'));
+          const idleLine = basicContext.split('\n').find(l => l.includes('idle'));
+          const extras = [focusLine, idleLine].filter(Boolean).join('\n');
+
+          const merged = extras ? `${deepContext}\n${extras}` : deepContext;
+          return { success: true, data: merged };
+        }
+      }
+
+      // Fallback: basic contextManager
       const contextManager = getContextManager();
       if (contextManager) {
         const context = contextManager.getContextForSync();
@@ -190,7 +211,14 @@ export function setupIpcHandlers(
       }
       return { success: true, data: '' };
     } catch (error) {
-      return { success: false, error: String(error) };
+      console.error('[ipc] Error getting context for sync:', error);
+      // Fallback to basic on any error
+      try {
+        const contextManager = getContextManager();
+        return { success: true, data: contextManager?.getContextForSync() || '' };
+      } catch {
+        return { success: false, error: String(error) };
+      }
     }
   });
 
