@@ -14,6 +14,7 @@
  */
 
 import crypto from 'crypto';
+import WebSocket from 'ws';
 import { getDatabase } from '../db/database';
 import { getAccessToken, getUser } from '../store';
 import { refreshAccessToken } from './authUtils';
