@@ -55,15 +55,27 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Classifier Init
 
     private func initClassifier() {
-        // TODO: Re-enable MLX once metallib build issue is resolved
-        // (swift build doesn't compile Metal shaders — needs Xcode build pipeline)
-        // For now, use FallbackClassifier which forwards events to Electron for cloud classification
-        self.classifier = FallbackClassifier(
-            writer: self.stdoutWriter,
-            log: { [weak self] msg in self?.log(msg) }
-        )
-        self.classifierReady = true
-        self.log("Using fallback classifier (MLX disabled pending metallib fix)")
+        let mlxClassifier = MLXActionClassifier(log: { [weak self] msg in
+            self?.log(msg)
+        })
+
+        Task {
+            let loaded = await mlxClassifier.loadModel()
+            await MainActor.run {
+                if loaded {
+                    self.classifier = mlxClassifier
+                    self.classifierReady = true
+                    self.log("Using MLX local classifier")
+                } else {
+                    self.classifier = FallbackClassifier(
+                        writer: self.stdoutWriter,
+                        log: { [weak self] msg in self?.log(msg) }
+                    )
+                    self.classifierReady = true
+                    self.log("MLX unavailable, using fallback classifier")
+                }
+            }
+        }
     }
 
     // MARK: - Message Handling

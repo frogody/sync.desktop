@@ -51,6 +51,36 @@ cp "$BINARY" "$APP_BUNDLE/Contents/MacOS/SYNCWidget"
 # Copy Info.plist
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
+# Compile MLX Metal shaders into mlx.metallib
+# (swift build doesn't compile .metal files — we do it manually with xcrun)
+METAL_SRC="$SWIFT_DIR/.build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal"
+if [[ -d "$METAL_SRC" ]] && xcrun --find metal &>/dev/null; then
+    echo "[build-swift] Compiling Metal shaders..."
+    AIR_DIR="$BUILD_DIR/metal-air"
+    rm -rf "$AIR_DIR" && mkdir -p "$AIR_DIR"
+
+    METAL_OK=0
+    METAL_FAIL=0
+    while IFS= read -r f; do
+        relpath=$(echo "$f" | sed "s|$METAL_SRC/||;s|/|_|g;s|\.metal$||")
+        if xcrun -sdk macosx metal -c "$f" -I "$METAL_SRC" -o "$AIR_DIR/${relpath}.air" 2>/dev/null; then
+            METAL_OK=$((METAL_OK + 1))
+        else
+            METAL_FAIL=$((METAL_FAIL + 1))
+        fi
+    done < <(find "$METAL_SRC" -name "*.metal" -not -path "*/examples/*")
+
+    echo "[build-swift] Metal shaders: $METAL_OK compiled, $METAL_FAIL failed"
+
+    if [[ $METAL_OK -gt 0 ]]; then
+        xcrun -sdk macosx metallib "$AIR_DIR"/*.air -o "$APP_BUNDLE/Contents/MacOS/mlx.metallib" 2>/dev/null
+        echo "[build-swift] mlx.metallib: $(du -h "$APP_BUNDLE/Contents/MacOS/mlx.metallib" | cut -f1)"
+    fi
+    rm -rf "$AIR_DIR"
+else
+    echo "[build-swift] Skipping Metal shaders (source not found or Metal toolchain missing)"
+fi
+
 # Copy MLX model if present
 MODEL_DIR="$SWIFT_DIR/Resources/model"
 if [[ -f "$MODEL_DIR/config.json" ]]; then
