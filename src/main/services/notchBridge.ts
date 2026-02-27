@@ -91,6 +91,12 @@ export class NotchBridge extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
+    // Suppress EPIPE errors when writing to stdin of a crashed process
+    this.process.stdin?.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') return;
+      console.error('[notch-bridge] stdin error:', err.message);
+    });
+
     // Read stdout: newline-delimited JSON from Swift
     this.process.stdout?.setEncoding('utf8');
     this.process.stdout?.on('data', (data: string) => {

@@ -1,4 +1,5 @@
 import Foundation
+import Metal
 import MLX
 import MLXLLM
 import MLXLMCommon
@@ -51,6 +52,23 @@ final class MLXActionClassifier: ActionClassifierProtocol {
 
     /// Load the model asynchronously. Call once on startup.
     func loadModel() async -> Bool {
+        // Metal must be available for MLX inference
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            log("Metal GPU not available — skipping MLX model load")
+            return false
+        }
+
+        // Test Metal shader compilation — MLX calls fatalError() if this fails,
+        // which bypasses Swift try/catch. We test with a trivial shader first.
+        do {
+            let trivialSource = "kernel void noop(device float *a [[buffer(0)]], uint i [[thread_position_in_grid]]) { a[i] = a[i]; }"
+            let _ = try await device.makeLibrary(source: trivialSource, options: nil)
+            log("Metal shader compilation OK")
+        } catch {
+            log("Metal shader compilation failed — skipping MLX: \(error.localizedDescription)")
+            return false
+        }
+
         let modelPath = self.resolveModelPath()
 
         guard let modelPath = modelPath else {
