@@ -154,6 +154,18 @@ const COMMITMENT_PATTERNS: {
   { regex: /(?:by|before|due|deadline)\s+(?:end of day|eod|tomorrow|next week|friday|monday|tuesday|wednesday|thursday|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d+)/gi, action: 'deadline' },
   // "Agreed to" / "promised" patterns
   { regex: /(?:agreed|promised|committed) to (.+?)(?:\.|!|$)/gi, action: 'follow_up' },
+  // Slack/Teams channel patterns
+  { regex: /@(?:channel|here|everyone)\s+(?:reminder|heads up|please|action|todo):\s*(.+?)(?:\.|!|$)/gi, action: 'follow_up' },
+  // Calendar invite patterns
+  { regex: /(?:invited? (?:you |them )?to|scheduled?|booked?)\s+(?:a |the )?(.+?)(?:\.|!|$)/gi, action: 'create_event' },
+  // "Can you" / "Could you" delegation patterns
+  { regex: /(?:can|could|would) you (?:please )?(?:send|email|schedule|create|forward|share|review|check|update)(.+?)(?:\?|$)/gi, action: 'follow_up' },
+  // "Will do" / "On it" confirmation patterns
+  { regex: /(?:will do|on it|sure thing|absolutely|got it|consider it done)[,.]?\s*(?:I'll |will )?(.+?)(?:\.|!|$)/gi, action: 'follow_up' },
+  // Sprint/agile deadline patterns
+  { regex: /(?:by|before|due|deadline)\s+(?:end of sprint|next sprint|standup|retro|demo|release|launch|go-?live|asap|eob|eow)/gi, action: 'deadline' },
+  // "Don't forget" / "Make sure" patterns
+  { regex: /(?:don't forget|make sure|remember) to (.+?)(?:\.|!|$)/gi, action: 'follow_up' },
 ];
 
 // ============================================================================
@@ -205,6 +217,36 @@ const DEADLINE_PATTERNS: { regex: RegExp; resolver: () => number }[] = [
   {
     regex: /\b(?:this |next )?(?:friday)\b/i,
     resolver: () => nextDayOfWeek(5),
+  },
+  {
+    regex: /\b(?:asap|as soon as possible|urgent|immediately)\b/i,
+    resolver: () => {
+      const d = new Date();
+      d.setHours(d.getHours() + 2); // 2 hours from now
+      return d.getTime();
+    },
+  },
+  {
+    regex: /\b(?:end of week|eow|this week)\b/i,
+    resolver: () => nextDayOfWeek(5), // Friday
+  },
+  {
+    regex: /\b(?:end of month|eom)\b/i,
+    resolver: () => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1, 0); // Last day of current month
+      d.setHours(17, 0, 0, 0);
+      return d.getTime();
+    },
+  },
+  {
+    regex: /\b(?:next sprint|end of sprint)\b/i,
+    resolver: () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 14); // ~2 weeks
+      d.setHours(9, 0, 0, 0);
+      return d.getTime();
+    },
   },
 ];
 
