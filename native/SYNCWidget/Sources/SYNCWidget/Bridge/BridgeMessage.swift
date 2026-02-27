@@ -55,21 +55,99 @@ struct ConfigPayload {
     }
 }
 
-// MARK: - Context Payload (extracted from IncomingMessage)
+// MARK: - Context Event Payload (individual events for MLX classification)
 
-struct ContextPayload {
-    let currentApp: String
-    let focusScore: Double
-    let isIdle: Bool
-    let recentApps: [String]
-    let recentActivity: String
+struct ContextEventPayload {
+    let eventType: String
+    let summary: String
+    let entities: [String]
+    let commitments: [[String: AnyCodableValue]]
+    let intent: String?
+    let source: ContextEventSource
+    let confidence: Double
+    let timestamp: Double
+
+    struct ContextEventSource {
+        let application: String
+        let windowTitle: String
+        let url: String?
+        let filePath: String?
+    }
 
     init?(from payload: [String: AnyCodableValue]) {
-        self.currentApp = payload["currentApp"]?.stringValue ?? ""
-        self.focusScore = payload["focusScore"]?.doubleValue ?? 0
-        self.isIdle = payload["isIdle"]?.boolValue ?? false
-        self.recentApps = payload["recentApps"]?.stringArrayValue ?? []
-        self.recentActivity = payload["recentActivity"]?.stringValue ?? ""
+        guard let eventType = payload["eventType"]?.stringValue,
+              let summary = payload["summary"]?.stringValue
+        else { return nil }
+
+        self.eventType = eventType
+        self.summary = summary
+        self.entities = payload["entities"]?.stringArrayValue ?? []
+        self.intent = payload["intent"]?.stringValue
+        self.confidence = payload["confidence"]?.doubleValue ?? 0
+        self.timestamp = payload["timestamp"]?.doubleValue ?? Date().timeIntervalSince1970 * 1000
+
+        // Parse commitments array
+        if case .array(let arr) = payload["commitments"] {
+            self.commitments = arr.compactMap { item -> [String: AnyCodableValue]? in
+                if case .dictionary(let dict) = item { return dict }
+                return nil
+            }
+        } else {
+            self.commitments = []
+        }
+
+        // Parse source object
+        if case .dictionary(let src) = payload["source"] {
+            self.source = ContextEventSource(
+                application: src["application"]?.stringValue ?? "",
+                windowTitle: src["windowTitle"]?.stringValue ?? "",
+                url: src["url"]?.stringValue,
+                filePath: src["filePath"]?.stringValue
+            )
+        } else {
+            self.source = ContextEventSource(
+                application: payload["currentApp"]?.stringValue ?? "",
+                windowTitle: "",
+                url: nil,
+                filePath: nil
+            )
+        }
+    }
+}
+
+// MARK: - Action Payload (from show_action message)
+
+extension ActionPayload {
+    init?(from payload: [String: AnyCodableValue]) {
+        guard let id = payload["id"]?.stringValue,
+              let title = payload["title"]?.stringValue,
+              let actionType = payload["actionType"]?.stringValue
+        else { return nil }
+
+        self.init(
+            id: id,
+            title: title,
+            subtitle: payload["subtitle"]?.stringValue,
+            actionType: actionType
+        )
+    }
+}
+
+// MARK: - Action Result Payload (from action_result message)
+
+struct ActionResultPayload {
+    let id: String
+    let success: Bool
+    let message: String?
+
+    init?(from payload: [String: AnyCodableValue]) {
+        guard let id = payload["id"]?.stringValue,
+              let success = payload["success"]?.boolValue
+        else { return nil }
+
+        self.id = id
+        self.success = success
+        self.message = payload["message"]?.stringValue
     }
 }
 

@@ -7,7 +7,8 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
     private let stdoutWriter = StdoutWriter()
     private var mouseMonitor: MouseMonitor?
     private var viewModel: NotchViewModel?
-    private var singleClickTimer: DispatchWorkItem?
+    private var classifier: ActionClassifierProtocol?
+    private var classifierReady = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let geometry = NotchGeometry.detect()
@@ -28,52 +29,6 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup mouse proximity tracking
         let monitor = MouseMonitor(geometry: geometry)
-        monitor.onProximityChange = { [weak vm] distance, maxDistance in
-            DispatchQueue.main.async {
-                vm?.updateProximity(distance: distance, maxDistance: maxDistance)
-            }
-        }
-        monitor.onMouseEntered = { [weak vm] in
-            vm?.mouseEntered()
-        }
-        monitor.onMouseExited = { [weak vm] in
-            vm?.mouseExited()
-        }
-        monitor.onClick = { [weak self, weak vm] in
-            guard let self = self, let vm = vm else { return }
-            DispatchQueue.main.async {
-                // In voice mode, a click on the notch area dismisses
-                if vm.state == .voiceListening || vm.state == .voiceSpeaking {
-                    vm.dismiss()
-                    return
-                }
-                guard vm.state == .hovering else { return }
-                // Delay single-click to allow double-click detection.
-                // If a second click comes within 300ms, the timer is cancelled
-                // and onDoubleClick fires instead.
-                self.singleClickTimer?.cancel()
-                let work = DispatchWorkItem { vm.activateVoice() }
-                self.singleClickTimer = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
-            }
-        }
-        monitor.onForceClick = { [weak vm] in
-            guard let vm = vm else { return }
-            DispatchQueue.main.async {
-                guard vm.state == .hovering else { return }
-                vm.activateVoice()
-            }
-        }
-        monitor.onDoubleClick = { [weak self, weak vm] in
-            guard let self = self, let vm = vm else { return }
-            DispatchQueue.main.async {
-                guard vm.state == .hovering else { return }
-                // Cancel pending single-click so voice doesn't fire
-                self.singleClickTimer?.cancel()
-                self.singleClickTimer = nil
-                vm.activateChat()
-            }
-        }
         monitor.start()
         self.mouseMonitor = monitor
 
@@ -82,6 +37,9 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
             self?.handleMessage(message)
         }
         stdinReader?.start()
+
+        // Load MLX classifier asynchronously (don't block UI)
+        initClassifier()
 
         // Signal readiness to Electron
         stdoutWriter.send(OutgoingMessage(type: "ready", payload: [:]))
@@ -94,6 +52,35 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
         log("SYNCWidget shutting down")
     }
 
+    // MARK: - Classifier Init
+
+    private func initClassifier() {
+        let mlxClassifier = MLXActionClassifier(log: { [weak self] msg in
+            self?.log(msg)
+        })
+
+        Task {
+            let loaded = await mlxClassifier.loadModel()
+            await MainActor.run {
+                if loaded {
+                    self.classifier = mlxClassifier
+                    self.classifierReady = true
+                    self.log("Using MLX local classifier")
+                } else {
+                    // Fallback: forward events to Electron for cloud classification
+                    self.classifier = FallbackClassifier(
+                        writer: self.stdoutWriter,
+                        log: { [weak self] msg in self?.log(msg) }
+                    )
+                    self.classifierReady = true
+                    self.log("MLX unavailable, using fallback classifier")
+                }
+            }
+        }
+    }
+
+    // MARK: - Message Handling
+
     @MainActor private func handleMessage(_ message: IncomingMessage) {
         switch message.type {
         case "config":
@@ -104,17 +91,34 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
                 log("Failed to parse config payload")
             }
 
-        case "context_update":
-            if let context = ContextPayload(from: message.payload) {
-                viewModel?.updateContext(context)
+        case "context_event":
+            if let event = ContextEventPayload(from: message.payload) {
+                classifyEvent(event)
             }
 
-        case "sync_status":
-            log("Received sync status")
+        case "show_action":
+            if let action = ActionPayload(from: message.payload) {
+                viewModel?.showAction(action: action)
+                log("Show action: \(action.title)")
+            } else {
+                log("Failed to parse show_action payload")
+            }
 
-        case "knock":
-            viewModel?.transition(to: .knocking)
-            log("Knock received")
+        case "hide_action":
+            if let id = message.payload["id"]?.stringValue {
+                viewModel?.hideAction(id: id)
+                log("Hide action: \(id)")
+            }
+
+        case "action_result":
+            if let result = ActionResultPayload(from: message.payload) {
+                viewModel?.showActionResult(
+                    id: result.id,
+                    success: result.success,
+                    message: result.message
+                )
+                log("Action result: \(result.id) success=\(result.success)")
+            }
 
         case "shutdown":
             log("Shutdown requested")
@@ -126,6 +130,78 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
             log("Unknown message type: \(message.type)")
         }
     }
+
+    // MARK: - Event Classification
+
+    private func classifyEvent(_ event: ContextEventPayload) {
+        guard classifierReady, let classifier = classifier else {
+            log("Classifier not ready, skipping event: \(event.eventType)")
+            return
+        }
+
+        Task {
+            guard let result = await classifier.classify(event: event) else {
+                return  // Classifier returned nil (fallback already forwarded, or parse error)
+            }
+
+            guard result.actionable else { return }
+
+            let actionId = UUID().uuidString
+            let eventHash = generateEventHash(event)
+
+            await MainActor.run {
+                if result.confidence > 0.7 {
+                    // High confidence: show in notch immediately
+                    self.viewModel?.showAction(action: ActionPayload(
+                        id: actionId,
+                        title: result.title,
+                        subtitle: nil,
+                        actionType: result.actionType
+                    ))
+                    self.log("MLX action shown (confidence: \(String(format: "%.2f", result.confidence))): \(result.title)")
+                } else if result.confidence > 0.5 {
+                    // Medium confidence: don't show locally, send to cloud for validation
+                    self.log("MLX action deferred to cloud (confidence: \(String(format: "%.2f", result.confidence))): \(result.title)")
+                } else {
+                    // Low confidence: discard
+                    return
+                }
+
+                // Send action_detected to Electron for cloud enrichment
+                self.stdoutWriter.send(OutgoingMessage(
+                    type: "action_detected",
+                    payload: [
+                        "id": .string(actionId),
+                        "eventHash": .string(eventHash),
+                        "title": .string(result.title),
+                        "actionType": .string(result.actionType),
+                        "confidence": .double(Double(result.confidence)),
+                        "localPayload": .dictionary([
+                            "eventType": .string(event.eventType),
+                            "summary": .string(event.summary),
+                            "source": .string(event.source.application),
+                            "windowTitle": .string(event.source.windowTitle),
+                        ]),
+                    ]
+                ))
+            }
+        }
+    }
+
+    private func generateEventHash(_ event: ContextEventPayload) -> String {
+        // Deterministic fingerprint: type + app + summary + minute-rounded timestamp
+        let minuteTimestamp = Int(event.timestamp / 60000) * 60000
+        let input = "\(event.eventType)|\(event.source.application)|\(event.summary)|\(minuteTimestamp)"
+
+        // Simple djb2 hash -- real SHA256 dedup happens in ActionService
+        var hash: UInt64 = 5381
+        for byte in input.utf8 {
+            hash = ((hash << 5) &+ hash) &+ UInt64(byte)
+        }
+        return String(hash, radix: 16)
+    }
+
+    // MARK: - Logging
 
     private func log(_ message: String) {
         stdoutWriter.send(OutgoingMessage(

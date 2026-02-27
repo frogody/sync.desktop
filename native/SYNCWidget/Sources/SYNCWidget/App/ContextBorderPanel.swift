@@ -4,15 +4,11 @@ import QuartzCore
 
 /// Manages 4 thin edge windows that together form a colored border around the screen.
 /// Each window is only a few pixels wide, positioned flush against a screen edge.
-/// This avoids the full-screen overlay approach which blocks mouse events on macOS.
 ///
 /// Per-state visual treatment:
-/// - compactChat:    thin steady rainbow, slow rotation
-/// - expandedChat:   thicker rainbow, medium rotation
-/// - voiceListening: pulsing pink/magenta, fast rotation
-/// - voiceSpeaking:  rippling cyan/blue
-/// - thinking:       fast-spinning rainbow
-/// - knocking:       bouncing amber/orange pulses
+/// - idle:           hidden
+/// - actionPending:  subtle amber glow
+/// - actionSuccess:  brief green pulse
 @MainActor
 final class ContextBorderManager {
     private let viewModel: NotchViewModel
@@ -29,40 +25,20 @@ final class ContextBorderManager {
 
     // MARK: - Color palettes
 
-    private let allColors: [CGColor] = [
-        CGColor(red: 0.93, green: 0.28, blue: 0.60, alpha: 1),
-        CGColor(red: 0.02, green: 0.71, blue: 0.83, alpha: 1),
-        CGColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 1),
+    private let actionPendingColors: [CGColor] = [
+        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
+        CGColor(red: 0.98, green: 0.45, blue: 0.09, alpha: 1),
+        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
+        CGColor(red: 0.98, green: 0.45, blue: 0.09, alpha: 1),
+        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
+    ]
+
+    private let actionSuccessColors: [CGColor] = [
         CGColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1),
         CGColor(red: 0.53, green: 0.94, blue: 0.67, alpha: 1),
-        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
-        CGColor(red: 0.96, green: 0.25, blue: 0.37, alpha: 1),
-        CGColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1),
-        CGColor(red: 0.93, green: 0.28, blue: 0.60, alpha: 1),
-    ]
-
-    private let voiceListenColors: [CGColor] = [
-        CGColor(red: 0.93, green: 0.28, blue: 0.60, alpha: 1),
-        CGColor(red: 0.96, green: 0.25, blue: 0.37, alpha: 1),
-        CGColor(red: 0.85, green: 0.20, blue: 0.70, alpha: 1),
-        CGColor(red: 0.93, green: 0.40, blue: 0.55, alpha: 1),
-        CGColor(red: 0.93, green: 0.28, blue: 0.60, alpha: 1),
-    ]
-
-    private let voiceSpeakColors: [CGColor] = [
-        CGColor(red: 0.02, green: 0.71, blue: 0.83, alpha: 1),
-        CGColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1),
-        CGColor(red: 0.08, green: 0.72, blue: 0.65, alpha: 1),
-        CGColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 1),
-        CGColor(red: 0.02, green: 0.71, blue: 0.83, alpha: 1),
-    ]
-
-    private let knockColors: [CGColor] = [
-        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
-        CGColor(red: 0.98, green: 0.45, blue: 0.09, alpha: 1),
-        CGColor(red: 0.96, green: 0.25, blue: 0.37, alpha: 1),
-        CGColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1),
-        CGColor(red: 0.98, green: 0.45, blue: 0.09, alpha: 1),
+        CGColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1),
+        CGColor(red: 0.53, green: 0.94, blue: 0.67, alpha: 1),
+        CGColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1),
     ]
 
     // MARK: - Init
@@ -72,9 +48,8 @@ final class ContextBorderManager {
 
         guard let screen = NSScreen.main else { return }
         let f = screen.frame
-        let maxThickness: CGFloat = 8  // Max border thickness we'll ever need
+        let maxThickness: CGFloat = 8
 
-        // Create 4 edge windows — thin strips along each edge
         topWindow    = BorderEdgeWindow(frame: NSRect(x: f.minX, y: f.maxY - maxThickness, width: f.width, height: maxThickness), edge: .top)
         bottomWindow = BorderEdgeWindow(frame: NSRect(x: f.minX, y: f.minY, width: f.width, height: maxThickness), edge: .bottom)
         leftWindow   = BorderEdgeWindow(frame: NSRect(x: f.minX, y: f.minY, width: maxThickness, height: f.height), edge: .left)
@@ -94,30 +69,12 @@ final class ContextBorderManager {
     // MARK: - State Observation
 
     private func observeState() {
-        // Show/hide based on context boost
-        viewModel.$isContextBoosted
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] boosted in
-                self?.setVisible(boosted)
-            }
-            .store(in: &cancellables)
-
-        // Update visual style based on widget state
         viewModel.$state
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 self?.updateForState(state)
             }
             .store(in: &cancellables)
-    }
-
-    private func setVisible(_ visible: Bool) {
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = visible ? 0.6 : 0.4
-            for w in allWindows {
-                w.animator().alphaValue = visible ? 1.0 : 0.0
-            }
-        }
     }
 
     // MARK: - Per-State Updates
@@ -127,8 +84,15 @@ final class ContextBorderManager {
         let colors = colorsFor(state)
         let speed = rotationDurationFor(state)
         let opacity = opacityFor(state)
-        let isKnocking = state == .knocking
-        let isVoice = state == .voiceListening || state == .voiceSpeaking
+
+        // Show/hide based on state
+        let visible = state != .idle
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = visible ? 0.6 : 0.4
+            for w in allWindows {
+                w.animator().alphaValue = visible ? 1.0 : 0.0
+            }
+        }
 
         for w in allWindows {
             w.updateBorder(
@@ -136,9 +100,9 @@ final class ContextBorderManager {
                 colors: colors,
                 rotationDuration: speed,
                 opacity: opacity,
-                isKnocking: isKnocking,
-                isVoice: isVoice,
-                voicePulseDuration: state == .voiceListening ? 0.6 : 0.9
+                isKnocking: false,
+                isVoice: false,
+                voicePulseDuration: 0
             )
         }
     }
@@ -147,44 +111,30 @@ final class ContextBorderManager {
 
     private func thicknessFor(_ state: WidgetState) -> CGFloat {
         switch state {
-        case .idle, .hovering:     return 0
-        case .compactChat:         return 2
-        case .expandedChat:        return 3.5
-        case .voiceListening:      return 3
-        case .voiceSpeaking:       return 3
-        case .thinking:            return 2.5
-        case .knocking:            return 2
+        case .idle:            return 0
+        case .actionPending:   return 2
+        case .actionSuccess:   return 3
         }
     }
 
     private func opacityFor(_ state: WidgetState) -> Float {
         switch state {
-        case .idle, .hovering:     return 0
-        case .compactChat:         return 0.5
-        case .expandedChat:        return 0.6
-        case .voiceListening:      return 0.6
-        case .voiceSpeaking:       return 0.55
-        case .thinking:            return 0.5
-        case .knocking:            return 0.55
+        case .idle:            return 0
+        case .actionPending:   return 0.4
+        case .actionSuccess:   return 0.6
         }
     }
 
     private func colorsFor(_ state: WidgetState) -> [CGColor] {
         switch state {
-        case .voiceListening:  return voiceListenColors
-        case .voiceSpeaking:   return voiceSpeakColors
-        case .knocking:        return knockColors
-        default:               return allColors
+        case .actionSuccess:   return actionSuccessColors
+        default:               return actionPendingColors
         }
     }
 
     private func rotationDurationFor(_ state: WidgetState) -> CFTimeInterval {
         switch state {
-        case .thinking:        return 1.5
-        case .voiceListening:  return 2.4
-        case .voiceSpeaking:   return 3.3
-        case .knocking:        return 3.0
-        case .expandedChat:    return 4.6
+        case .actionSuccess:   return 2.0
         default:               return 6.0
         }
     }
@@ -226,7 +176,7 @@ final class BorderEdgeWindow: NSWindow {
         alphaValue = 0
 
         setupLayer()
-        ignoresMouseEvents = true  // Re-assert after content view setup
+        ignoresMouseEvents = true
     }
 
     private func setupLayer() {
@@ -240,7 +190,6 @@ final class BorderEdgeWindow: NSWindow {
         gradientLayer = CAGradientLayer()
         gradientLayer.frame = rootLayer.bounds
 
-        // Gradient direction follows the edge
         switch edge {
         case .top, .bottom:
             gradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
@@ -254,12 +203,10 @@ final class BorderEdgeWindow: NSWindow {
         gradientLayer.opacity = 0
         rootLayer.addSublayer(gradientLayer)
 
-        // Animated color shift
         addColorShift(duration: 6)
     }
 
     private func addColorShift(duration: CFTimeInterval) {
-        // Animate the start/end points to create a moving color effect
         let anim = CABasicAnimation(keyPath: "startPoint")
         let endAnim = CABasicAnimation(keyPath: "endPoint")
 
@@ -299,7 +246,6 @@ final class BorderEdgeWindow: NSWindow {
         gradientLayer.colors = colors
         gradientLayer.opacity = opacity
 
-        // Resize gradient to match thickness (rest is transparent)
         let bounds = contentView?.bounds ?? .zero
         switch edge {
         case .top:
@@ -314,31 +260,10 @@ final class BorderEdgeWindow: NSWindow {
 
         CATransaction.commit()
 
-        // Update animation speed
         gradientLayer.removeAnimation(forKey: "colorShift")
         addColorShift(duration: rotationDuration)
 
-        // Knocking: bounce animation on opacity
         gradientLayer.removeAnimation(forKey: "knock")
         gradientLayer.removeAnimation(forKey: "pulse")
-
-        if isKnocking {
-            let knock = CAKeyframeAnimation(keyPath: "opacity")
-            knock.values = [opacity, 1.0, opacity * 0.3, 0.9, opacity * 0.3, 0.7, opacity]
-            knock.keyTimes = [0, 0.14, 0.28, 0.42, 0.56, 0.70, 1.0]
-            knock.duration = 1.5
-            knock.repeatCount = 3
-            gradientLayer.add(knock, forKey: "knock")
-        }
-
-        if isVoice {
-            let pulse = CABasicAnimation(keyPath: "opacity")
-            pulse.fromValue = opacity * 0.5
-            pulse.toValue = opacity
-            pulse.duration = voicePulseDuration
-            pulse.autoreverses = true
-            pulse.repeatCount = .infinity
-            gradientLayer.add(pulse, forKey: "pulse")
-        }
     }
 }

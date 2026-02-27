@@ -2,72 +2,38 @@ import SwiftUI
 import AppKit
 import Combine
 
+/// Payload for an action displayed in the notch.
+struct ActionPayload {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let actionType: String
+}
+
 /// Central coordinator for the notch widget.
-/// Manages state transitions, mouse proximity, and communication with Electron.
+/// Manages state transitions, action lifecycle, and communication with Electron.
 @MainActor
 final class NotchViewModel: ObservableObject {
     // MARK: - Published State
 
     @Published var state: WidgetState = .idle
-    @Published var proximityIntensity: CGFloat = 0  // 0 (far) to 1 (at notch)
-    @Published var isMouseInside: Bool = false
 
-    // Chat state
-    @Published var chatMessages: [ChatMessage] = []
-    @Published var chatInput: String = ""
-    @Published var isStreaming: Bool = false
-
-    // Voice state
-    @Published var audioLevel: CGFloat = 0
-    @Published var voiceTranscript: String = ""
+    // Action state
+    @Published var currentAction: ActionPayload?
 
     // Config from Electron
     @Published var isAuthenticated: Bool = false
 
-    // Context boost: true when widget is active (not idle/hovering)
-    @Published var isContextBoosted: Bool = false
-
     // MARK: - Internal State
 
     private(set) var config: ConfigPayload?
-    private(set) var context: ContextPayload?
     private let writer: StdoutWriter
-
-    // SSE client for chat — lives here so it persists across SwiftUI view re-renders
-    let sseClient = SSEClient()
-
-    // Keyboard capture for chat input (CGEventTap — avoids needing panel focus)
-    let keyboardCapture = KeyboardCapture()
+    private var autoDismissTimer: DispatchWorkItem?
 
     // MARK: - Init
 
     init(writer: StdoutWriter) {
         self.writer = writer
-        setupKeyboardCapture()
-    }
-
-    private func setupKeyboardCapture() {
-        keyboardCapture.onCharacter = { [weak self] chars in
-            DispatchQueue.main.async {
-                self?.chatInput.append(chars)
-            }
-        }
-        keyboardCapture.onDelete = { [weak self] in
-            DispatchQueue.main.async {
-                guard let self = self, !self.chatInput.isEmpty else { return }
-                self.chatInput.removeLast()
-            }
-        }
-        keyboardCapture.onSubmit = { [weak self] in
-            DispatchQueue.main.async {
-                self?.sendChatMessage()
-            }
-        }
-        keyboardCapture.onEscape = { [weak self] in
-            DispatchQueue.main.async {
-                self?.dismiss()
-            }
-        }
     }
 
     // MARK: - State Transitions
@@ -84,153 +50,116 @@ final class NotchViewModel: ObservableObject {
             payload: ["state": .string(newState.rawValue)]
         ))
 
-        // Manage context boost: active when widget is interactive (not idle/hovering)
-        let shouldBoost = newState != .idle && newState != .hovering
-        if shouldBoost != isContextBoosted {
-            isContextBoosted = shouldBoost
-            if shouldBoost {
-                writer.send(OutgoingMessage(
-                    type: "context_boost",
-                    payload: ["interval": .int(1000)]  // 1-second polling
-                ))
-                // Request immediate context update
-                writer.send(OutgoingMessage(type: "request_context", payload: [:]))
-            } else {
-                writer.send(OutgoingMessage(
-                    type: "context_normal",
-                    payload: [:]
-                ))
+        log("State: \(oldState.rawValue) -> \(newState.rawValue)")
+    }
+
+    // MARK: - Action Lifecycle
+
+    /// Show an action in the notch (called when Electron sends show_action or MLX detects one)
+    func showAction(action: ActionPayload) {
+        // Cancel any existing auto-dismiss timer
+        autoDismissTimer?.cancel()
+
+        currentAction = action
+        transition(to: .actionPending)
+
+        // Auto-dismiss after 60 seconds if no interaction
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self, self.state == .actionPending,
+                  self.currentAction?.id == action.id else { return }
+            self.dismissAction()
+        }
+        autoDismissTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60, execute: work)
+    }
+
+    /// User tapped the approve button
+    func approveAction() {
+        guard let action = currentAction else { return }
+
+        hapticTap(.levelChange)
+
+        // Notify Electron
+        writer.send(OutgoingMessage(
+            type: "action_approved",
+            payload: ["id": .string(action.id)]
+        ))
+
+        // Cancel auto-dismiss
+        autoDismissTimer?.cancel()
+        autoDismissTimer = nil
+
+        // Show success animation
+        transition(to: .actionSuccess)
+
+        // Auto-dismiss success after 1.5s
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self, self.state == .actionSuccess else { return }
+            self.currentAction = nil
+            self.transition(to: .idle)
+        }
+    }
+
+    /// User tapped the dismiss button
+    func dismissAction() {
+        guard let action = currentAction else { return }
+
+        hapticTap(.generic)
+
+        // Notify Electron
+        writer.send(OutgoingMessage(
+            type: "action_dismissed",
+            payload: ["id": .string(action.id)]
+        ))
+
+        // Cancel auto-dismiss
+        autoDismissTimer?.cancel()
+        autoDismissTimer = nil
+
+        currentAction = nil
+        transition(to: .idle)
+    }
+
+    /// Hide a specific action (called by Electron when action is invalidated/expired)
+    func hideAction(id: String) {
+        guard currentAction?.id == id else { return }
+
+        autoDismissTimer?.cancel()
+        autoDismissTimer = nil
+
+        currentAction = nil
+        transition(to: .idle)
+    }
+
+    /// Show action result (called by Electron after execution completes)
+    func showActionResult(id: String, success: Bool, message: String?) {
+        guard currentAction?.id == id || state == .actionSuccess else { return }
+
+        if success {
+            // Already showing success from approveAction, or transition now
+            if state != .actionSuccess {
+                transition(to: .actionSuccess)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                    guard let self = self, self.state == .actionSuccess else { return }
+                    self.currentAction = nil
+                    self.transition(to: .idle)
+                }
             }
-        }
-
-        // Start/stop keyboard capture for chat modes
-        let needsKeyboard = newState == .compactChat || newState == .expandedChat
-        if needsKeyboard && !keyboardCapture.isCapturing {
-            keyboardCapture.start()
-        } else if !needsKeyboard && keyboardCapture.isCapturing {
-            keyboardCapture.stop()
-        }
-
-        log("State: \(oldState.rawValue) → \(newState.rawValue)")
-    }
-
-    // MARK: - Mouse Proximity
-
-    func updateProximity(distance: CGFloat, maxDistance: CGFloat) {
-        let normalized = max(0, min(1, 1 - (distance / maxDistance)))
-        proximityIntensity = normalized
-
-        if normalized > 0.01 && state == .idle {
-            transition(to: .hovering)
-        } else if normalized < 0.01 && state == .hovering {
+        } else {
+            // On failure, dismiss immediately
+            currentAction = nil
             transition(to: .idle)
         }
     }
 
-    func mouseEntered() {
-        isMouseInside = true
-        if state == .idle {
-            transition(to: .hovering)
-        }
-    }
-
-    func mouseExited() {
-        isMouseInside = false
-        // Only return to idle if we're in hover state (not chat/voice)
-        if state == .hovering {
-            transition(to: .idle)
-        }
-    }
-
-    // MARK: - Pulse feedback (brief visual pulse on interaction)
+    // MARK: - Pulse feedback
 
     @Published var interactionPulse: CGFloat = 0
 
     private func hapticTap(_ pattern: NSHapticFeedbackManager.FeedbackPattern = .generic) {
         NSHapticFeedbackManager.defaultPerformer.perform(pattern, performanceTime: .now)
-        // Brief visual pulse
         withAnimation(.easeOut(duration: 0.15)) { interactionPulse = 1.0 }
         withAnimation(.easeOut(duration: 0.4).delay(0.15)) { interactionPulse = 0 }
-    }
-
-    // MARK: - User Actions
-
-    func activateChat() {
-        hapticTap(.levelChange)
-        transition(to: .compactChat)
-    }
-
-    func expandChat() {
-        hapticTap(.levelChange)
-        transition(to: .expandedChat)
-    }
-
-    func activateVoice() {
-        hapticTap(.levelChange)
-        transition(to: .voiceListening)
-    }
-
-    func dismiss() {
-        hapticTap(.generic)
-        transition(to: .idle)
-    }
-
-    func openWebApp() {
-        writer.send(OutgoingMessage(
-            type: "open_external",
-            payload: ["url": .string("https://app.isyncso.com")]
-        ))
-    }
-
-    // MARK: - Chat
-
-    func sendChatMessage() {
-        let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isStreaming else { return }
-        guard let config = config else { return }
-
-        let userMsg = ChatMessage(role: .user, content: text, timestamp: Date())
-        chatMessages.append(userMsg)
-        chatInput = ""
-
-        let assistantMsg = ChatMessage(role: .assistant, content: "", timestamp: Date())
-        chatMessages.append(assistantMsg)
-        let assistantId = assistantMsg.id
-        isStreaming = true
-
-        Task {
-            await sseClient.streamChat(
-                message: text,
-                config: config,
-                context: context,
-                onChunk: { [weak self] content in
-                    Task { @MainActor in
-                        guard let self = self else { return }
-                        if let idx = self.chatMessages.firstIndex(where: { $0.id == assistantId }) {
-                            self.chatMessages[idx].content = content
-                        }
-                    }
-                },
-                onComplete: { [weak self] content in
-                    Task { @MainActor in
-                        guard let self = self else { return }
-                        if let idx = self.chatMessages.firstIndex(where: { $0.id == assistantId }) {
-                            self.chatMessages[idx].content = content
-                        }
-                        self.isStreaming = false
-                    }
-                },
-                onError: { [weak self] error in
-                    Task { @MainActor in
-                        guard let self = self else { return }
-                        if let idx = self.chatMessages.firstIndex(where: { $0.id == assistantId }) {
-                            self.chatMessages[idx].content = "Error: \(error)"
-                        }
-                        self.isStreaming = false
-                    }
-                }
-            )
-        }
     }
 
     // MARK: - Config Updates from Electron
@@ -240,10 +169,6 @@ final class NotchViewModel: ObservableObject {
         isAuthenticated = !payload.accessToken.isEmpty
     }
 
-    func updateContext(_ payload: ContextPayload) {
-        context = payload
-    }
-
     // MARK: - Logging
 
     private func log(_ message: String) {
@@ -251,19 +176,5 @@ final class NotchViewModel: ObservableObject {
             type: "log",
             payload: ["level": .string("info"), "message": .string(message)]
         ))
-    }
-}
-
-// MARK: - Chat Message Model
-
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let role: Role
-    var content: String
-    let timestamp: Date
-
-    enum Role {
-        case user
-        case assistant
     }
 }

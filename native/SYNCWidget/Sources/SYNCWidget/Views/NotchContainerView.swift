@@ -14,26 +14,11 @@ struct NotchContainerView: View {
             case .idle:
                 IdleView()
 
-            case .hovering:
-                HoverGlowView(
-                    geometry: geometry,
-                    intensity: viewModel.proximityIntensity
-                )
+            case .actionPending:
+                ActionPendingView(viewModel: viewModel, geometry: geometry)
 
-            case .compactChat:
-                CompactChatView(viewModel: viewModel, geometry: geometry)
-
-            case .expandedChat:
-                ExpandedChatView(viewModel: viewModel, geometry: geometry)
-
-            case .voiceListening, .voiceSpeaking:
-                VoicePillView(viewModel: viewModel, geometry: geometry)
-
-            case .thinking:
-                ThinkingView(geometry: geometry)
-
-            case .knocking:
-                KnockingView(viewModel: viewModel, geometry: geometry)
+            case .actionSuccess:
+                ActionSuccessView(geometry: geometry)
             }
         }
         .animation(

@@ -26,6 +26,7 @@ import { DeepContextEngine } from '../deep-context';
 import { checkAndRequestPermissions, checkPermissions } from './services/permissions';
 import { initAutoUpdater } from './services/autoUpdater';
 import { NotchBridge } from './services/notchBridge';
+import { ActionService } from './services/actionService';
 import { initDatabase } from './db/database';
 import { APP_PROTOCOL, WEB_APP_URL } from '../shared/constants';
 import {
@@ -56,6 +57,7 @@ let cloudSyncService: CloudSyncService | null = null;
 let deepContextManager: DeepContextManager | null = null;
 let deepContextEngine: DeepContextEngine | null = null;
 let notchBridge: NotchBridge | null = null;
+let actionService: ActionService | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // ============================================================================
@@ -391,6 +393,18 @@ app.whenReady().then(async () => {
           }
         }
       }
+      // Wire DeepContextEngine events to NotchBridge for MLX classification
+      if (deepContextEngine && notchBridge.running) {
+        notchBridge.wireDeepContext(deepContextEngine);
+        console.log('[main] DeepContextEngine wired to NotchBridge');
+      }
+
+      // Start ActionService to coordinate cloud enrichment + execution
+      if (notchBridge.running) {
+        actionService = new ActionService();
+        actionService.start(notchBridge);
+        console.log('[main] ActionService started');
+      }
     } catch (err) {
       console.error('[main] Notch widget failed to start, using fallback:', err);
       notchBridge = null;
@@ -421,6 +435,11 @@ app.on('window-all-closed', () => {
 // Cleanup on quit
 app.on('before-quit', () => {
   console.log('[main] Shutting down...');
+
+  // Stop action service
+  if (actionService) {
+    actionService.stop();
+  }
 
   // Stop notch widget bridge
   if (notchBridge) {
@@ -501,4 +520,8 @@ export function getDeepContextEngine() {
 
 export function getNotchBridge() {
   return notchBridge;
+}
+
+export function getActionService() {
+  return actionService;
 }

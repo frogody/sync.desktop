@@ -12,7 +12,6 @@ final class NotchOverlayPanel: NSPanel {
     private var cancellables = Set<AnyCancellable>()
     private var clickOutsideMonitor: Any?
 
-    private let panelWidth: CGFloat = 500
     private let topBleed: CGFloat = 4  // Extends above screen to overlap with physical notch
 
     init(geometry: NotchGeometry, viewModel: NotchViewModel) {
@@ -20,7 +19,7 @@ final class NotchOverlayPanel: NSPanel {
         self.viewModel = viewModel
 
         let screen = geometry.screenFrame
-        // Start as 1x1 — idle state blocks nothing
+        // Start as 1x1 -- idle state blocks nothing
         let initialFrame = NSRect(
             x: screen.origin.x + (screen.width - 1) / 2,
             y: screen.origin.y + screen.height - 1,
@@ -57,8 +56,8 @@ final class NotchOverlayPanel: NSPanel {
             .ignoresCycle
         ]
 
-        ignoresMouseEvents = true  // Start pass-through; only accept events when hovering/active
-        hidesOnDeactivate = false  // Stay visible even when app deactivates
+        ignoresMouseEvents = false  // Accept click events for action buttons
+        hidesOnDeactivate = false   // Stay visible even when app deactivates
         isReleasedWhenClosed = false
     }
 
@@ -80,16 +79,12 @@ final class NotchOverlayPanel: NSPanel {
             .sink { [weak self] newState in
                 guard let self = self else { return }
 
-                // Panel is ALWAYS click-through. All interactions go through
-                // the global MouseMonitor. This prevents Stage Manager from
-                // triggering because macOS never considers this panel as
-                // "interacted with" by the user.
-                self.ignoresMouseEvents = true
-
                 switch newState {
-                case .idle, .hovering:
+                case .idle:
+                    self.ignoresMouseEvents = true
                     self.removeClickOutsideMonitor()
-                default:
+                case .actionPending, .actionSuccess:
+                    self.ignoresMouseEvents = false
                     self.installClickOutsideMonitor()
                 }
 
@@ -102,34 +97,22 @@ final class NotchOverlayPanel: NSPanel {
     // MARK: - Dynamic Panel Sizing
 
     private func resizeForState(_ state: WidgetState) {
-        let barHeight = geometry.notchHeight + 28  // Compact voice bar
         let contentHeight: CGFloat
         let width: CGFloat
 
         switch state {
         case .idle:
-            // Tiny 1x1 frame — effectively invisible, blocks nothing
+            // Tiny 1x1 frame -- effectively invisible, blocks nothing
             contentHeight = 1
             width = 1
-        case .hovering:
-            // Only as wide as the notch + small margin, not the full 500px
-            contentHeight = barHeight + 20
-            width = geometry.notchWidth + 80
-        case .compactChat:
-            contentHeight = barHeight + 8 + 230
-            width = panelWidth
-        case .expandedChat:
-            contentHeight = barHeight + 8 + 370
-            width = panelWidth
-        case .voiceListening, .voiceSpeaking:
-            contentHeight = barHeight + 6 + 70
-            width = 360
-        case .thinking:
-            contentHeight = barHeight + 20
-            width = panelWidth
-        case .knocking:
-            contentHeight = barHeight + 20
-            width = panelWidth
+        case .actionPending:
+            // Pill: notch height + pill (44px) + padding
+            contentHeight = geometry.notchHeight + 4 + 44 + 8
+            width = 500
+        case .actionSuccess:
+            // Same size as actionPending for smooth transition
+            contentHeight = geometry.notchHeight + 4 + 44 + 8
+            width = 500
         }
 
         let screen = geometry.screenFrame
@@ -152,15 +135,12 @@ final class NotchOverlayPanel: NSPanel {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self else { return }
 
-            // Convert click location to screen coordinates
             let clickLocation = NSEvent.mouseLocation
 
-            // Check if the click is inside the panel frame
             if !self.frame.contains(clickLocation) {
                 Task { @MainActor in
-                    // Don't dismiss during active chat streaming
-                    guard !self.viewModel.isStreaming else { return }
-                    self.viewModel.dismiss()
+                    guard self.viewModel.state == .actionPending else { return }
+                    self.viewModel.dismissAction()
                 }
             }
         }
@@ -179,9 +159,6 @@ final class NotchOverlayPanel: NSPanel {
 
     // MARK: - Mouse Event Handling
 
-    // Panel is always click-through — never becomes key, never steals focus,
-    // never triggers Stage Manager. All user interaction goes through the
-    // global MouseMonitor instead.
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }

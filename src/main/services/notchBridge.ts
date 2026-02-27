@@ -4,18 +4,21 @@
  * Spawns the native SYNCWidget Swift helper app and manages
  * bidirectional JSON communication over stdin/stdout.
  *
- * The Swift helper handles the native macOS notch widget UI,
- * while this bridge provides it with auth tokens, activity context,
- * and other state from the Electron main process.
+ * The Swift helper handles the native macOS notch widget UI
+ * and runs a local MLX model for action classification.
+ * This bridge forwards context events for classification and
+ * relays action lifecycle messages between Swift and ActionService.
  */
 
+import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import { app, shell, systemPreferences } from 'electron';
 import { getAccessToken, getUser } from '../store';
-import { getContextManager, getCloudSyncService, getActivityTracker } from '../index';
 import { getFloatingWidget, setNativeWidgetActive } from '../windows/floatingWidget';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../shared/constants';
+import type { ContextEvent } from '../../deep-context/types';
+import type { DeepContextEngine } from '../../deep-context';
 
 // ============================================================================
 // Types
@@ -26,17 +29,36 @@ interface BridgeMessage {
   payload: Record<string, unknown>;
 }
 
+/** Action to show in the notch widget */
+export interface NotchAction {
+  id: string;
+  title: string;
+  subtitle?: string;
+  actionType: string;
+}
+
+/** Action detected by the Swift MLX classifier */
+export interface DetectedAction {
+  id: string;
+  eventHash: string;
+  title: string;
+  actionType: string;
+  confidence: number;
+  localPayload: Record<string, unknown>;
+}
+
 // ============================================================================
 // NotchBridge Class
 // ============================================================================
 
-export class NotchBridge {
+export class NotchBridge extends EventEmitter {
   private process: ChildProcess | null = null;
   private buffer: string = '';
-  private contextInterval: NodeJS.Timeout | null = null;
   private isStarted: boolean = false;
   private restartCount: number = 0;
   private maxRestarts: number = 3;
+  private deepContextEngine: DeepContextEngine | null = null;
+  private contextEventHandler: ((event: ContextEvent) => void) | null = null;
 
   // ============================================================================
   // Lifecycle
@@ -55,10 +77,10 @@ export class NotchBridge {
       return;
     }
 
-    // Don't launch the native widget without accessibility permission —
+    // Don't launch the native widget without accessibility permission --
     // it uses NSEvent.addGlobalMonitorForEvents which triggers the macOS dialog
     if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
-      console.log('[notch-bridge] Accessibility not granted — skipping native widget');
+      console.log('[notch-bridge] Accessibility not granted -- skipping native widget');
       return;
     }
 
@@ -122,11 +144,6 @@ export class NotchBridge {
       this.process = null;
       this.isStarted = false;
     });
-
-    // Send context updates every 30 seconds
-    this.contextInterval = setInterval(() => {
-      this.sendContextUpdate();
-    }, 30000);
   }
 
   stop(): void {
@@ -135,10 +152,8 @@ export class NotchBridge {
     console.log('[notch-bridge] Stopping...');
     this.isStarted = false;
 
-    if (this.contextInterval) {
-      clearInterval(this.contextInterval);
-      this.contextInterval = null;
-    }
+    // Unsubscribe from DeepContextEngine
+    this.unwireDeepContext();
 
     if (this.process) {
       // Send shutdown message, then force-kill after 2 seconds
@@ -154,6 +169,33 @@ export class NotchBridge {
 
   get running(): boolean {
     return this.isStarted && this.process !== null;
+  }
+
+  // ============================================================================
+  // DeepContextEngine Wiring
+  // ============================================================================
+
+  /** Connect to a DeepContextEngine to automatically forward context events to Swift */
+  wireDeepContext(engine: DeepContextEngine): void {
+    this.unwireDeepContext(); // Clean up any previous subscription
+
+    this.deepContextEngine = engine;
+    this.contextEventHandler = (event: ContextEvent) => {
+      this.sendContextEvent(event);
+    };
+
+    engine.on('event', this.contextEventHandler);
+    console.log('[notch-bridge] Wired to DeepContextEngine events');
+  }
+
+  /** Disconnect from the DeepContextEngine */
+  private unwireDeepContext(): void {
+    if (this.deepContextEngine && this.contextEventHandler) {
+      this.deepContextEngine.removeListener('event', this.contextEventHandler);
+      this.deepContextEngine = null;
+      this.contextEventHandler = null;
+      console.log('[notch-bridge] Unwired from DeepContextEngine');
+    }
   }
 
   // ============================================================================
@@ -214,19 +256,6 @@ export class NotchBridge {
   }
 
   // ============================================================================
-  // Context Update Interval Management
-  // ============================================================================
-
-  private setContextUpdateInterval(ms: number): void {
-    if (this.contextInterval) {
-      clearInterval(this.contextInterval);
-    }
-    this.contextInterval = setInterval(() => {
-      this.sendContextUpdate();
-    }, ms);
-  }
-
-  // ============================================================================
   // Send Messages (Electron -> Swift)
   // ============================================================================
 
@@ -266,48 +295,62 @@ export class NotchBridge {
     });
   }
 
-  /** Send current activity context to the Swift widget */
-  sendContextUpdate(): void {
-    const cm = getContextManager();
-    if (!cm) return;
-
-    try {
-      const snapshot = cm.getFreshContext();
-      this.send({
-        type: 'context_update',
-        payload: {
-          currentApp: snapshot.currentApp || '',
-          focusScore: snapshot.focusScore,
-          isIdle: snapshot.isIdle,
-          recentApps: snapshot.recentApps
-            .slice(0, 5)
-            .map((a) => a.app),
-          recentActivity: cm.getContextForSync(),
+  /** Send a context event to Swift for MLX classification */
+  sendContextEvent(event: ContextEvent): void {
+    this.send({
+      type: 'context_event',
+      payload: {
+        eventType: event.eventType,
+        summary: event.semanticPayload.summary,
+        entities: event.semanticPayload.entities,
+        commitments: event.semanticPayload.commitments || [],
+        intent: event.semanticPayload.intent || null,
+        source: {
+          application: event.source.application,
+          windowTitle: event.source.windowTitle,
+          url: event.source.url || null,
+          filePath: event.source.filePath || null,
         },
-      });
-    } catch (e) {
-      // Context manager might not be ready yet
-    }
+        confidence: event.confidence,
+        timestamp: event.timestamp,
+      },
+    });
   }
 
-  /** Send sync status to the Swift widget */
-  sendSyncStatus(): void {
-    const sync = getCloudSyncService();
-    if (!sync) return;
+  /** Show an action in the notch widget (cloud-enriched or new) */
+  sendAction(action: NotchAction): void {
+    this.send({
+      type: 'show_action',
+      payload: {
+        id: action.id,
+        title: action.title,
+        subtitle: action.subtitle || null,
+        actionType: action.actionType,
+      },
+    });
+  }
 
-    try {
-      const status = sync.getStatus();
-      this.send({
-        type: 'sync_status',
-        payload: {
-          isSyncing: status.isSyncing,
-          lastSyncTime: status.lastSyncTime?.toISOString() || null,
-          pendingItems: status.pendingItems || 0,
-        },
-      });
-    } catch (e) {
-      // Sync service might not be ready
-    }
+  /** Hide/dismiss an action from the notch widget */
+  hideAction(id: string, reason?: string): void {
+    this.send({
+      type: 'hide_action',
+      payload: {
+        id,
+        reason: reason || null,
+      },
+    });
+  }
+
+  /** Send the result of an executed action to the notch widget */
+  sendActionResult(id: string, success: boolean, message?: string): void {
+    this.send({
+      type: 'action_result',
+      payload: {
+        id,
+        success,
+        message: message || null,
+      },
+    });
   }
 
   // ============================================================================
@@ -319,10 +362,9 @@ export class NotchBridge {
       case 'ready':
         console.log('[notch-bridge] SYNCWidget ready');
         this.restartCount = 0; // Reset restart counter on successful startup
-        // Send initial config and context
+        // Send initial config
         this.sendAuthUpdate();
-        this.sendContextUpdate();
-        // Permanently suppress old BrowserWindow widget — native notch widget takes over
+        // Permanently suppress old BrowserWindow widget -- native notch widget takes over
         setNativeWidgetActive(true);
         this.hideOldWidget();
         break;
@@ -331,34 +373,34 @@ export class NotchBridge {
         console.log('[notch-bridge] Widget state:', msg.payload.state);
         break;
 
-      case 'context_boost': {
-        // Widget entered interactive state — boost activity polling to near-real-time
-        const interval = (msg.payload.interval as number) || 1000;
-        console.log('[notch-bridge] Context boost: polling every', interval, 'ms');
-        const tracker = getActivityTracker();
-        if (tracker) {
-          tracker.setPollInterval(interval);
-        }
-        // Also increase context update frequency
-        this.setContextUpdateInterval(interval);
+      case 'action_detected': {
+        // MLX model detected an actionable event
+        const detected: DetectedAction = {
+          id: msg.payload.id as string,
+          eventHash: msg.payload.eventHash as string,
+          title: msg.payload.title as string,
+          actionType: msg.payload.actionType as string,
+          confidence: msg.payload.confidence as number,
+          localPayload: (msg.payload.localPayload as Record<string, unknown>) || {},
+        };
+        console.log('[notch-bridge] Action detected:', detected.title, `(${detected.confidence})`);
+        this.emit('action_detected', detected);
         break;
       }
 
-      case 'context_normal':
-        // Widget returned to idle — restore normal polling
-        console.log('[notch-bridge] Context normal: restoring default polling');
-        {
-          const tracker = getActivityTracker();
-          if (tracker) {
-            tracker.setPollInterval(5000);
-          }
-        }
-        this.setContextUpdateInterval(30000);
+      case 'action_approved': {
+        const id = msg.payload.id as string;
+        console.log('[notch-bridge] Action approved:', id);
+        this.emit('action_approved', { id });
         break;
+      }
 
-      case 'request_context':
-        this.sendContextUpdate();
+      case 'action_dismissed': {
+        const id = msg.payload.id as string;
+        console.log('[notch-bridge] Action dismissed:', id);
+        this.emit('action_dismissed', { id });
         break;
+      }
 
       case 'request_auth':
         this.sendAuthUpdate();
@@ -369,19 +411,6 @@ export class NotchBridge {
           shell.openExternal(msg.payload.url);
         }
         break;
-
-      case 'trigger_sync': {
-        const sync = getCloudSyncService();
-        if (sync) {
-          sync.forceSync().then((result) => {
-            console.log('[notch-bridge] Manual sync result:', result);
-            this.sendSyncStatus();
-          }).catch((err) => {
-            console.error('[notch-bridge] Manual sync error:', err);
-          });
-        }
-        break;
-      }
 
       case 'log': {
         const level = msg.payload.level as string || 'info';
