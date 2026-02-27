@@ -221,9 +221,53 @@ export class SemanticAnalyzer {
       },
       commitments,
       actionItems,
+      workSummary: this.inferWorkSummary(appName, windowTitle, text),
       emailContext,
       calendarContext,
     };
+  }
+
+  private inferWorkSummary(appName: string, windowTitle: string, text: string): string {
+    const title = windowTitle || '';
+
+    // Common patterns: "filename.ts — ProjectName" or "filename.ts — ProjectName — Visual Studio Code"
+    const vsCodeMatch = title.match(/^(.+?)\s*[—–-]\s*(.+?)(?:\s*[—–-]\s*Visual Studio Code)?$/);
+    if (vsCodeMatch && ['visual studio code', 'vs code', 'code', 'cursor'].some(e => appName.toLowerCase().includes(e))) {
+      return `Editing ${vsCodeMatch[1].trim()} in ${vsCodeMatch[2].trim()}`;
+    }
+
+    // Terminal: extract current directory or command
+    const terminalMatch = title.match(/(?:~[/\\]?)([\w./-]+)/);
+    if (terminalMatch && (appName.toLowerCase().includes('terminal') || appName.toLowerCase().includes('iterm') || appName.toLowerCase().includes('warp'))) {
+      return `Working in ${terminalMatch[1]}`;
+    }
+
+    // Terminal fallback: use full title if it's a known terminal app
+    if (['terminal', 'iterm', 'warp', 'hyper'].some(t => appName.toLowerCase().includes(t))) {
+      if (title && title.length > 3) {
+        return `Terminal: ${title.substring(0, 120)}`;
+      }
+      return `Using ${appName}`;
+    }
+
+    // Browser: page title
+    if (['chrome', 'safari', 'firefox', 'arc', 'brave', 'edge'].some(b => appName.toLowerCase().includes(b))) {
+      const pageTitle = title.replace(/\s*[-–—]\s*(Google Chrome|Safari|Firefox|Arc|Brave|Microsoft Edge)$/i, '').trim();
+      if (pageTitle.length > 5) {
+        return `Browsing: ${pageTitle.substring(0, 120)}`;
+      }
+    }
+
+    // Finder
+    if (appName.toLowerCase().includes('finder')) {
+      return title ? `File management: ${title}` : 'File management in Finder';
+    }
+
+    // Fallback
+    if (title && title.length > 3) {
+      return `${title.substring(0, 120)}`;
+    }
+    return `Using ${appName}`;
   }
 
   private detectActivity(appName: string, windowTitle: string, text: string): ActivityType {
@@ -461,6 +505,7 @@ Your job is to identify:
 1. COMMITMENTS: Any promises or statements of future action the user is making
 2. ACTION ITEMS: Tasks, TODOs, or things that need to be done
 3. CONTEXT: What the user is currently doing (email, calendar, coding, etc.)
+4. WORK CONTEXT: A 1-2 sentence summary of what the user is actively working on (project, task, feature, topic)
 
 Be concise and accurate. Only extract clear commitments and action items.
 Respond in valid JSON format only.`;
@@ -472,6 +517,7 @@ ${text.substring(0, 3000)}
 Extract and return JSON in this exact format:
 {
   "activity": "composing_email|reading_email|editing_doc|browsing|coding|meeting|calendar|chatting|other",
+  "workSummary": "1-2 sentence description of what the user is working on based on screen content",
   "commitments": [
     {
       "text": "the exact commitment text",
@@ -552,6 +598,7 @@ Return ONLY valid JSON, no other text.`;
 
       console.log('[semanticAnalyzer] LLM analysis complete:', {
         activity: parsed.activity,
+        workSummary: parsed.workSummary,
         commitments: parsed.commitments?.length || 0,
         actionItems: parsed.actionItems?.length || 0,
       });
@@ -574,6 +621,7 @@ Return ONLY valid JSON, no other text.`;
           priority: a.priority || 'medium',
           source: a.source || 'other',
         })),
+        workSummary: parsed.workSummary || this.inferWorkSummary(appName, windowTitle, text),
         emailContext: parsed.emailContext
           ? {
               composing: parsed.emailContext.composing || false,

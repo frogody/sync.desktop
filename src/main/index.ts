@@ -9,6 +9,7 @@
  * - Cloud sync
  */
 
+import 'dotenv/config';
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 import path from 'path';
 import { createFloatingWidget, getFloatingWidget } from './windows/floatingWidget';

@@ -326,6 +326,7 @@ export interface ScreenAnalysis {
     priority: ActionPriority;
     source: ActionSource;
   }[];
+  workSummary?: string;
   emailContext?: {
     composing: boolean;
     to: string[];

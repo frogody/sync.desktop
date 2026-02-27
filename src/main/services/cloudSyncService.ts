@@ -426,7 +426,7 @@ export class CloudSyncService {
 
     const db = getDatabase();
     const rows = db.prepare(`
-      SELECT id, timestamp, app_name, window_title, analysis
+      SELECT id, timestamp, app_name, window_title, text_content, analysis
       FROM screen_captures
       WHERE synced = 0
       ORDER BY timestamp ASC
@@ -451,18 +451,38 @@ export class CloudSyncService {
           involvedParties: c.recipient ? [c.recipient] : [],
         }));
 
+        // Build semantic summary
+        let summary = '';
+        if (analysis.workSummary) {
+          summary = analysis.workSummary;
+        } else if (row.window_title) {
+          const activity = analysis.appContext?.activity || 'Active';
+          const title = row.window_title.replace(/\s*[-–—]\s*(Google Chrome|Safari|Firefox|Arc|Brave|Terminal|iTerm2?)$/i, '').trim();
+          summary = title ? `${title}` : `${activity} in ${row.app_name}`;
+        } else {
+          summary = `${analysis.appContext?.activity || 'Active'} in ${row.app_name}`;
+        }
+
+        // Include action items and text snippet as entities
+        const entities: any[] = [];
+        if (analysis.actionItems?.length > 0) {
+          for (const item of analysis.actionItems) {
+            entities.push({ type: 'action_item', text: item.text, priority: item.priority });
+          }
+        }
+
         return {
           user_id: user.id,
           company_id: user.companyId,
           event_type: analysis.appContext?.activity || 'screen_capture',
           source_application: row.app_name,
           source_window_title: row.window_title?.substring(0, 200) || null,
-          summary: `${analysis.appContext?.activity || 'Active'} in ${row.app_name}`,
-          entities: [],
+          summary: summary.substring(0, 500),
+          entities,
           intent: analysis.appContext?.activity || null,
           commitments,
           skill_signals: [],
-          confidence: 0.7,
+          confidence: analysis.workSummary ? 0.9 : 0.7,
           privacy_level: 'sync_allowed',
           created_at: new Date(row.timestamp).toISOString(),
         };
