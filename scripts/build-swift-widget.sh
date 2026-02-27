@@ -51,6 +51,14 @@ cp "$BINARY" "$APP_BUNDLE/Contents/MacOS/SYNCWidget"
 # Copy Info.plist
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
+# Copy MLX model if present
+MODEL_DIR="$SWIFT_DIR/Resources/model"
+if [[ -f "$MODEL_DIR/config.json" ]]; then
+    echo "[build-swift] Copying MLX model into app bundle..."
+    cp -r "$MODEL_DIR" "$APP_BUNDLE/Contents/Resources/model"
+    echo "[build-swift] Model size: $(du -sh "$APP_BUNDLE/Contents/Resources/model" | cut -f1)"
+fi
+
 # Create PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 

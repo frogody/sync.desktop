@@ -45,3 +45,9 @@ coverage/
 # Swift build artifacts
 native/SYNCWidget/.build/
 native/SYNCWidget/build/
+
+# MLX model weights (too large for git)
+native/SYNCWidget/Resources/model/*.safetensors
+native/SYNCWidget/Resources/model/*.safetensors.index.json
+native/SYNCWidget/Resources/model/tokenizer.json
+native/SYNCWidget/Resources/model/chat_template.jinja
