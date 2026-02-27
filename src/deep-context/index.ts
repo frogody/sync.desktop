@@ -291,12 +291,15 @@ export class DeepContextEngine extends EventEmitter {
 
     const lines: string[] = ['--- Deep Context ---'];
 
-    // Current activity
+    // Current activity with rich detail
     const latest = recentEvents[0];
     if (latest) {
       lines.push(`Current: ${latest.semanticPayload.summary}`);
       if (latest.semanticPayload.intent) {
         lines.push(`Intent: ${latest.semanticPayload.intent}`);
+      }
+      if (latest.source.filePath) {
+        lines.push(`File: ${latest.source.filePath}`);
       }
     }
 
@@ -306,7 +309,7 @@ export class DeepContextEngine extends EventEmitter {
       lines.push(`Context switches (last 15 min): ${switches.length}`);
     }
 
-    // Recent entities
+    // Recent entities (people, projects, tools)
     const allEntities = new Set<string>();
     for (const event of recentEvents.slice(0, 10)) {
       for (const entity of event.semanticPayload.entities) {
@@ -317,16 +320,38 @@ export class DeepContextEngine extends EventEmitter {
       lines.push(`Mentioned: ${Array.from(allEntities).slice(0, 10).join(', ')}`);
     }
 
-    // Pending commitments
+    // Pending commitments (the big differentiator)
     const pendingCommitments = commitments.filter(
       (c) => c.status === 'detected' || c.status === 'pending_action'
     );
     if (pendingCommitments.length > 0) {
       lines.push(`Pending commitments (${pendingCommitments.length}):`);
       for (const c of pendingCommitments.slice(0, 5)) {
-        const due = c.dueDate ? ` (due: ${new Date(c.dueDate).toLocaleString()})` : '';
-        lines.push(`  - ${c.description}${due}`);
+        const due = c.dueDate ? ` (due: ${new Date(c.dueDate).toLocaleString()})` : ' (no deadline)';
+        const parties = c.involvedParties.length > 0 ? ` [${c.involvedParties.join(', ')}]` : '';
+        lines.push(`  - ${c.description}${due}${parties}`);
       }
+    }
+
+    // Overdue commitments (urgent)
+    const overdueCommitments = commitments.filter((c) => c.status === 'overdue');
+    if (overdueCommitments.length > 0) {
+      lines.push(`OVERDUE (${overdueCommitments.length}):`);
+      for (const c of overdueCommitments.slice(0, 3)) {
+        lines.push(`  ! ${c.description}`);
+      }
+    }
+
+    // Active skill signals from recent events
+    const skillSet = new Set<string>();
+    for (const event of recentEvents.slice(0, 10)) {
+      const skills = event.semanticPayload.skillSignals || [];
+      for (const s of skills) {
+        skillSet.add(s.skillPath.join(' > '));
+      }
+    }
+    if (skillSet.size > 0) {
+      lines.push(`Active skills: ${Array.from(skillSet).slice(0, 5).join(', ')}`);
     }
 
     // Recent apps
