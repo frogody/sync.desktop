@@ -10,6 +10,7 @@ import { JournalService } from './journalService';
 import { HourlySummary, DailyJournal, User } from '../../shared/types';
 import { getUnsyncedActivity, markActivitySynced } from '../db/queries';
 import { getAccessToken, getUser, setUser } from '../store';
+import { getDatabase } from '../db/database';
 import { refreshAccessToken } from './authUtils';
 import { DeepContextEngine } from '../../deep-context';
 import type { ContextEvent } from '../../deep-context/types';
@@ -194,9 +195,11 @@ export class CloudSyncService {
       const journalCount = await this.syncDailyJournals();
       result.syncedItems.journals = journalCount;
 
-      // Sync deep context events
+      // Sync deep context events (file watcher)
       const contextCount = await this.syncContextEvents();
-      result.syncedItems.contextEvents = contextCount;
+      // Sync screen captures (OCR/analysis — the real rich context)
+      const captureCount = await this.syncScreenCaptures();
+      result.syncedItems.contextEvents = contextCount + captureCount;
 
       // Note: We don't sync raw activity logs to save bandwidth
       // Summaries and journals contain the aggregated data
@@ -406,6 +409,77 @@ export class CloudSyncService {
         if (ids.length > 0) {
           this.deepContextEngine!.markEventsSynced(ids);
         }
+        syncedCount += batch.length;
+      }
+    }
+
+    return syncedCount;
+  }
+
+  /**
+   * Sync screen captures (from deepContextManager) to desktop_context_events.
+   * These contain the real OCR/analysis data (activity type, commitments, etc.)
+   */
+  private async syncScreenCaptures(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const db = getDatabase();
+    const rows = db.prepare(`
+      SELECT id, timestamp, app_name, window_title, analysis
+      FROM screen_captures
+      WHERE synced = 0
+      ORDER BY timestamp ASC
+      LIMIT 50
+    `).all() as any[];
+
+    if (rows.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${rows.length} screen captures`);
+    let syncedCount = 0;
+
+    for (let i = 0; i < rows.length; i += 10) {
+      const batch = rows.slice(i, i + 10);
+      const cloudData = batch.map((row) => {
+        let analysis: any = {};
+        try { analysis = row.analysis ? JSON.parse(row.analysis) : {}; } catch {}
+
+        const commitments = (analysis.commitments || []).map((c: any) => ({
+          description: c.text || c.description || '',
+          status: c.status || 'detected',
+          dueDate: c.deadline ? new Date(c.deadline).getTime() : null,
+          involvedParties: c.recipient ? [c.recipient] : [],
+        }));
+
+        return {
+          user_id: user.id,
+          company_id: user.companyId,
+          event_type: analysis.appContext?.activity || 'screen_capture',
+          source_application: row.app_name,
+          source_window_title: row.window_title?.substring(0, 200) || null,
+          summary: `${analysis.appContext?.activity || 'Active'} in ${row.app_name}`,
+          entities: [],
+          intent: analysis.appContext?.activity || null,
+          commitments,
+          skill_signals: [],
+          confidence: 0.7,
+          privacy_level: 'sync_allowed',
+          created_at: new Date(row.timestamp).toISOString(),
+        };
+      });
+
+      const { error } = await this.supabaseRequest(
+        'desktop_context_events',
+        'POST',
+        cloudData
+      );
+
+      if (error) {
+        console.error('[sync] Screen captures batch failed:', error.message);
+        this.syncErrors.push(`Screen captures: ${error.message}`);
+      } else {
+        const ids = batch.map((r: any) => r.id);
+        db.prepare(`UPDATE screen_captures SET synced = 1 WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
         syncedCount += batch.length;
       }
     }
