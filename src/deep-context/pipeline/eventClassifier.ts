@@ -274,6 +274,46 @@ const ENTITY_PATTERNS = [
 ];
 
 // ============================================================================
+// Framework Detection Patterns
+// ============================================================================
+
+const FRAMEWORK_PATTERNS: { pattern: RegExp; framework: string; category: string }[] = [
+  { pattern: /\b(?:useState|useEffect|useRef|useMemo|useCallback|React\.)\b/g, framework: 'React', category: 'Frontend' },
+  { pattern: /\b(?:next\/|getServerSideProps|getStaticProps|NextResponse|app\/.*\/page)\b/g, framework: 'Next.js', category: 'Frontend' },
+  { pattern: /\b(?:vue\.|v-bind|v-model|v-if|defineComponent|ref\(|computed\()\b/g, framework: 'Vue.js', category: 'Frontend' },
+  { pattern: /\b(?:@angular|NgModule|@Component|@Injectable|ngOnInit)\b/g, framework: 'Angular', category: 'Frontend' },
+  { pattern: /\b(?:from django|from flask|FastAPI|@app\.route|Blueprint)\b/g, framework: 'Python Web', category: 'Backend' },
+  { pattern: /\b(?:express\(|app\.get\(|app\.post\(|router\.|middleware)\b/g, framework: 'Express.js', category: 'Backend' },
+  { pattern: /\b(?:Deno\.serve|oak|fresh)\b/g, framework: 'Deno', category: 'Backend' },
+  { pattern: /\b(?:docker|Dockerfile|docker-compose|ENTRYPOINT|FROM .+ AS)\b/gi, framework: 'Docker', category: 'DevOps' },
+  { pattern: /\b(?:terraform|resource "|provider "|module ")\b/g, framework: 'Terraform', category: 'Infrastructure' },
+  { pattern: /\b(?:tailwind|@apply|className="|class=".*(?:flex|grid|bg-|text-))\b/g, framework: 'Tailwind CSS', category: 'Styling' },
+];
+
+// ============================================================================
+// File Path Skill Map
+// ============================================================================
+
+const FILE_SKILL_MAP: Record<string, { skill: string; category: string }> = {
+  'package.json': { skill: 'Node.js', category: 'Runtime' },
+  'Cargo.toml': { skill: 'Rust', category: 'Language' },
+  'go.mod': { skill: 'Go', category: 'Language' },
+  'requirements.txt': { skill: 'Python', category: 'Language' },
+  'Pipfile': { skill: 'Python', category: 'Language' },
+  'pyproject.toml': { skill: 'Python', category: 'Language' },
+  'Gemfile': { skill: 'Ruby', category: 'Language' },
+  'pom.xml': { skill: 'Java/Maven', category: 'Build' },
+  'build.gradle': { skill: 'Java/Gradle', category: 'Build' },
+  'docker-compose.yml': { skill: 'Docker Compose', category: 'DevOps' },
+  'Dockerfile': { skill: 'Docker', category: 'DevOps' },
+  '.github/workflows': { skill: 'GitHub Actions', category: 'CI/CD' },
+  'terraform': { skill: 'Terraform', category: 'Infrastructure' },
+  'tsconfig.json': { skill: 'TypeScript', category: 'Language' },
+  'vite.config': { skill: 'Vite', category: 'Build' },
+  'webpack.config': { skill: 'Webpack', category: 'Build' },
+};
+
+// ============================================================================
 // Event Classifier Class
 // ============================================================================
 
@@ -300,7 +340,7 @@ export class EventClassifier {
     // Extract information
     const commitments = this.extractCommitments(text);
     const entities = this.extractEntities(text);
-    const skillSignals = this.detectSkillSignals(category, capture.appName, text);
+    const skillSignals = this.detectSkillSignals(category, capture.appName, text, capture.windowTitle);
 
     // Determine event type (priority order matters)
     let eventType: ContextEventType;
@@ -546,7 +586,8 @@ export class EventClassifier {
   detectSkillSignals(
     category: ActivityCategory,
     appName: string,
-    text: string
+    text: string,
+    windowTitle: string = ''
   ): SkillSignal[] {
     const signals: SkillSignal[] = [];
     const skillInfo = SKILL_CATEGORY_MAP[category];
@@ -576,6 +617,35 @@ export class EventClassifier {
           proficiencyIndicator: 'intermediate',
           evidence: `Writing ${lang} code in ${appName}`,
         });
+      }
+    }
+
+    // Framework detection from text content
+    if (text) {
+      for (const fp of FRAMEWORK_PATTERNS) {
+        if (fp.pattern.test(text)) {
+          signals.push({
+            skillCategory: fp.category,
+            skillPath: [fp.category, fp.framework],
+            proficiencyIndicator: 'intermediate',
+            evidence: `Using ${fp.framework} patterns`,
+          });
+        }
+        fp.pattern.lastIndex = 0; // Reset regex state
+      }
+    }
+
+    // File-path-based skill detection from window title
+    if (windowTitle) {
+      for (const [fileKey, skillInfo] of Object.entries(FILE_SKILL_MAP)) {
+        if (windowTitle.toLowerCase().includes(fileKey.toLowerCase())) {
+          signals.push({
+            skillCategory: skillInfo.category,
+            skillPath: [skillInfo.category, skillInfo.skill],
+            proficiencyIndicator: 'intermediate',
+            evidence: `Working with ${fileKey}`,
+          });
+        }
       }
     }
 
