@@ -11,6 +11,8 @@ import { HourlySummary, DailyJournal, User } from '../../shared/types';
 import { getUnsyncedActivity, markActivitySynced } from '../db/queries';
 import { getAccessToken, getUser, setUser } from '../store';
 import { refreshAccessToken } from './authUtils';
+import { DeepContextEngine } from '../../deep-context';
+import type { ContextEvent } from '../../deep-context/types';
 
 // ============================================================================
 // Constants
@@ -30,6 +32,7 @@ export interface SyncResult {
     activities: number;
     summaries: number;
     journals: number;
+    contextEvents: number;
   };
 }
 
@@ -45,13 +48,19 @@ interface SupabaseResponse<T = any> {
 export class CloudSyncService {
   private summaryService: SummaryService;
   private journalService: JournalService;
+  private deepContextEngine: DeepContextEngine | null;
   private isSyncing: boolean = false;
   private lastSyncTime: Date | null = null;
   private syncErrors: string[] = [];
 
-  constructor(summaryService: SummaryService, journalService: JournalService) {
+  constructor(
+    summaryService: SummaryService,
+    journalService: JournalService,
+    deepContextEngine?: DeepContextEngine
+  ) {
     this.summaryService = summaryService;
     this.journalService = journalService;
+    this.deepContextEngine = deepContextEngine || null;
   }
 
   // ============================================================================
@@ -154,7 +163,7 @@ export class CloudSyncService {
       return {
         success: false,
         error: 'Sync already in progress',
-        syncedItems: { activities: 0, summaries: 0, journals: 0 },
+        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
       };
     }
 
@@ -162,7 +171,7 @@ export class CloudSyncService {
       return {
         success: false,
         error: 'Not authenticated',
-        syncedItems: { activities: 0, summaries: 0, journals: 0 },
+        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
       };
     }
 
@@ -171,7 +180,7 @@ export class CloudSyncService {
 
     const result: SyncResult = {
       success: true,
-      syncedItems: { activities: 0, summaries: 0, journals: 0 },
+      syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
     };
 
     try {
@@ -184,6 +193,10 @@ export class CloudSyncService {
       // Sync daily journals
       const journalCount = await this.syncDailyJournals();
       result.syncedItems.journals = journalCount;
+
+      // Sync deep context events
+      const contextCount = await this.syncContextEvents();
+      result.syncedItems.contextEvents = contextCount;
 
       // Note: We don't sync raw activity logs to save bandwidth
       // Summaries and journals contain the aggregated data
@@ -336,6 +349,64 @@ export class CloudSyncService {
         syncedCount++;
       } catch (error) {
         this.syncErrors.push(`Journal ${journal.id}: ${(error as Error).message}`);
+      }
+    }
+
+    return syncedCount;
+  }
+
+  /**
+   * Sync deep context events to cloud
+   */
+  private async syncContextEvents(): Promise<number> {
+    if (!this.deepContextEngine) return 0;
+
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsyncedEvents = this.deepContextEngine.getUnsyncedEvents(50);
+    if (unsyncedEvents.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsyncedEvents.length} deep context events`);
+    let syncedCount = 0;
+
+    // Batch upload (chunks of 10)
+    for (let i = 0; i < unsyncedEvents.length; i += 10) {
+      const batch = unsyncedEvents.slice(i, i + 10);
+      const cloudData = batch.map((event) => ({
+        user_id: user.id,
+        company_id: user.companyId,
+        event_type: event.eventType,
+        source_application: event.source.application,
+        source_window_title: event.source.windowTitle?.substring(0, 200),
+        summary: event.semanticPayload.summary,
+        entities: event.semanticPayload.entities,
+        intent: event.semanticPayload.intent || null,
+        commitments: event.semanticPayload.commitments || [],
+        skill_signals: event.semanticPayload.skillSignals || [],
+        confidence: event.confidence,
+        privacy_level: event.privacyLevel,
+        created_at: new Date(event.timestamp).toISOString(),
+      }));
+
+      const { error } = await this.supabaseRequest(
+        'desktop_context_events',
+        'POST',
+        cloudData
+      );
+
+      if (error) {
+        console.error('[sync] Context events batch failed:', error.message);
+        this.syncErrors.push(`Context events: ${error.message}`);
+      } else {
+        // Mark as synced locally
+        const ids = batch
+          .map((event) => event.id)
+          .filter((id): id is number => id !== undefined);
+        if (ids.length > 0) {
+          this.deepContextEngine!.markEventsSynced(ids);
+        }
+        syncedCount += batch.length;
       }
     }
 

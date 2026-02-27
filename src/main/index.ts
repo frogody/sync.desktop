@@ -270,7 +270,6 @@ app.whenReady().then(async () => {
   // Create core services
   summaryService = new SummaryService();
   journalService = new JournalService(summaryService);
-  cloudSyncService = new CloudSyncService(summaryService, journalService);
 
   // Start activity tracking if enabled and permissions granted
   if (settings.trackingEnabled) {
@@ -318,6 +317,9 @@ app.whenReady().then(async () => {
       console.log('[main] Activity tracking disabled - accessibility permission not granted');
     }
   }
+
+  // Create cloud sync service (after deepContextEngine so it can sync context events)
+  cloudSyncService = new CloudSyncService(summaryService, journalService, deepContextEngine || undefined);
 
   // Update tray menu now that tracker state is known
   updateTrayMenu();
