@@ -621,7 +621,16 @@ function runMigrations(): void {
     if (!appliedMigrations.includes(migration.name)) {
       console.log('[db] Applying migration:', migration.name);
 
-      db.exec(migration.sql);
+      try {
+        db.exec(migration.sql);
+      } catch (err: any) {
+        // Handle "duplicate column" errors from partial previous runs
+        if (err.message?.includes('duplicate column')) {
+          console.log('[db] Migration had duplicate columns (already exist), marking as applied:', migration.name);
+        } else {
+          throw err;
+        }
+      }
       db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migration.name);
 
       console.log('[db] Migration applied:', migration.name);

@@ -162,7 +162,9 @@ export class AccessibilityCaptureService extends EventEmitter {
     }
 
     try {
-      // Single AppleScript that reads everything we need
+      // Single AppleScript that reads everything we need.
+      // Uses AXFocusedUIElement attribute instead of "focused UI element" syntax
+      // for macOS Sequoia (15.x) compatibility (fixes error -2741).
       const script = `
         tell application "System Events"
           set frontApp to first application process whose frontmost is true
@@ -174,45 +176,45 @@ export class AccessibilityCaptureService extends EventEmitter {
             set windowTitle to name of first window of frontApp
           end try
 
-          -- Get focused element info
+          -- Get focused element info via AX attribute (Sequoia-compatible)
           set focusedText to ""
           set focusedRole to ""
           try
-            set focusedElement to focused UI element of frontApp
-            set focusedRole to role of focusedElement as text
+            set focusedEl to value of attribute "AXFocusedUIElement" of frontApp
+            set focusedRole to role of focusedEl as text
             try
-              set focusedText to value of focusedElement as text
+              set focusedText to value of focusedEl as text
             end try
             if focusedText is "" then
               try
-                set focusedText to description of focusedElement as text
+                set focusedText to (description of focusedEl) as text
               end try
             end if
             if focusedText is "" then
               try
-                set focusedText to title of focusedElement as text
+                set focusedText to (title of focusedEl) as text
               end try
             end if
           end try
 
-          -- Get visible text from the window (read first text area or text field)
+          -- Get visible text from the window
           set visibleText to ""
           try
             set firstWindow to first window of frontApp
             -- Try to find a text area (editors, compose windows)
             try
-              set allTextAreas to every text area of firstWindow
+              set allTextAreas to (every text area of firstWindow)
               if (count of allTextAreas) > 0 then
-                set visibleText to value of first item of allTextAreas as text
+                set visibleText to (value of first item of allTextAreas) as text
               end if
             end try
             -- If no text area found, try text fields
             if visibleText is "" then
               try
-                set allTextFields to every text field of firstWindow
+                set allTextFields to (every text field of firstWindow)
                 if (count of allTextFields) > 0 then
                   repeat with tf in allTextFields
-                    set tfValue to value of tf as text
+                    set tfValue to (value of tf) as text
                     if length of tfValue > length of visibleText then
                       set visibleText to tfValue
                     end if
@@ -223,13 +225,13 @@ export class AccessibilityCaptureService extends EventEmitter {
             -- Try scroll areas (for apps like Safari, Chrome)
             if visibleText is "" then
               try
-                set allScrollAreas to every scroll area of firstWindow
+                set allScrollAreas to (every scroll area of firstWindow)
                 if (count of allScrollAreas) > 0 then
                   set firstScroll to first item of allScrollAreas
                   try
-                    set allInnerTextAreas to every text area of firstScroll
+                    set allInnerTextAreas to (every text area of firstScroll)
                     if (count of allInnerTextAreas) > 0 then
-                      set visibleText to value of first item of allInnerTextAreas as text
+                      set visibleText to (value of first item of allInnerTextAreas) as text
                     end if
                   end try
                 end if
