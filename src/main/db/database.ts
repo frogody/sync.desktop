@@ -596,6 +596,24 @@ function runMigrations(): void {
         INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('last_signature_computation', NULL);
       `,
     },
+    {
+      name: '010_fix_hourly_summaries_columns',
+      sql: `
+        -- Migration 003_update_timestamp_columns dropped and recreated hourly_summaries
+        -- without the ocr_text, semantic_category, and commitments columns that were
+        -- added by 003_add_deep_context_columns. Re-add them.
+        ALTER TABLE hourly_summaries ADD COLUMN ocr_text TEXT;
+        ALTER TABLE hourly_summaries ADD COLUMN semantic_category TEXT;
+        ALTER TABLE hourly_summaries ADD COLUMN commitments TEXT;
+      `,
+    },
+    {
+      name: '011_fix_screen_captures_synced',
+      sql: `
+        -- screen_captures was missing a synced column needed by cloudSyncService
+        ALTER TABLE screen_captures ADD COLUMN synced INTEGER DEFAULT 0;
+      `,
+    },
   ];
 
   // Apply unapplied migrations
