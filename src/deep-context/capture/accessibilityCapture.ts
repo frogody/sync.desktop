@@ -248,8 +248,9 @@ export class AccessibilityCaptureService extends EventEmitter {
       `;
 
       const output = execSync(
-        `osascript -e '${script.replace(/'/g, "'\"'\"'")}'`,
+        'osascript',
         {
+          input: script,
           encoding: 'utf-8',
           timeout: EXEC_TIMEOUT_MS,
           maxBuffer: 1024 * 1024, // 1MB
