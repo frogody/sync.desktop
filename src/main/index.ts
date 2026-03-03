@@ -27,6 +27,7 @@ import { checkAndRequestPermissions, checkPermissions } from './services/permiss
 import { initAutoUpdater } from './services/autoUpdater';
 import { NotchBridge } from './services/notchBridge';
 import { ActionService } from './services/actionService';
+import { EntityRegistry, SemanticProcessor, ThreadManager, IntentClassifier, SignatureComputer } from './services/semantic';
 import { initDatabase } from './db/database';
 import { APP_PROTOCOL, WEB_APP_URL } from '../shared/constants';
 import {
@@ -58,6 +59,11 @@ let deepContextManager: DeepContextManager | null = null;
 let deepContextEngine: DeepContextEngine | null = null;
 let notchBridge: NotchBridge | null = null;
 let actionService: ActionService | null = null;
+let entityRegistry: EntityRegistry | null = null;
+let semanticProcessor: SemanticProcessor | null = null;
+let threadManager: ThreadManager | null = null;
+let intentClassifier: IntentClassifier | null = null;
+let signatureComputer: SignatureComputer | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // ============================================================================
@@ -321,6 +327,55 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Start semantic entity registry (processes deep context events into structured entities)
+  entityRegistry = new EntityRegistry();
+  await entityRegistry.start();
+
+  if (deepContextEngine) {
+    deepContextEngine.on('event', (event) => {
+      if (entityRegistry) {
+        try {
+          entityRegistry.extractAndResolve(event);
+        } catch (err) {
+          console.error('[main] Entity extraction failed:', err);
+        }
+      }
+    });
+    console.log('[main] Semantic entity registry connected to deep context engine');
+  }
+
+  // Start semantic processor (activity classification — Phase 2)
+  // Note: notchBridge may not be started yet at this point, so we pass undefined
+  // and it will be wired later after NotchBridge starts
+  semanticProcessor = new SemanticProcessor(entityRegistry, undefined);
+  await semanticProcessor.start();
+
+  // Start thread manager and intent classifier (Phase 3)
+  threadManager = new ThreadManager();
+  await threadManager.start();
+  intentClassifier = new IntentClassifier(threadManager);
+  await intentClassifier.start();
+  semanticProcessor.setThreadManager(threadManager);
+  semanticProcessor.setIntentClassifier(intentClassifier);
+  console.log('[main] Thread manager and intent classifier started');
+
+  // Start signature computer (Phase 4 — behavioral signatures, stateless)
+  signatureComputer = new SignatureComputer();
+  console.log('[main] Signature computer ready');
+
+  if (deepContextEngine) {
+    deepContextEngine.on('event', (event) => {
+      if (semanticProcessor) {
+        try {
+          semanticProcessor.processEvent(event);
+        } catch (err) {
+          console.error('[main] Semantic processing failed:', err);
+        }
+      }
+    });
+  }
+  console.log('[main] Semantic processor started');
+
   // Create cloud sync service (after deepContextEngine so it can sync context events)
   cloudSyncService = new CloudSyncService(summaryService, journalService, deepContextEngine || undefined);
 
@@ -334,6 +389,16 @@ app.whenReady().then(async () => {
     const currentSettings = getSettings();
     if (cloudSyncService && currentSettings.autoSync) {
       await cloudSyncService.sync();
+    }
+  });
+  scheduler.setSemanticCycleCallback(async () => {
+    if (semanticProcessor) {
+      await semanticProcessor.processRecentEvents();
+    }
+  });
+  scheduler.setSignatureComputationCallback(async () => {
+    if (signatureComputer) {
+      signatureComputer.computeAll(30);
     }
   });
   scheduler.start();
@@ -451,6 +516,17 @@ app.on('before-quit', () => {
     scheduler.stop();
   }
 
+  // Stop intent classifier, thread manager, then semantic processor (reverse order)
+  if (intentClassifier) {
+    intentClassifier.stop();
+  }
+  if (threadManager) {
+    threadManager.stop();
+  }
+  if (semanticProcessor) {
+    semanticProcessor.stop();
+  }
+
   // Stop deep context engine
   if (deepContextEngine) {
     deepContextEngine.stop();
@@ -524,4 +600,24 @@ export function getNotchBridge() {
 
 export function getActionService() {
   return actionService;
+}
+
+export function getEntityRegistry() {
+  return entityRegistry;
+}
+
+export function getSemanticProcessor() {
+  return semanticProcessor;
+}
+
+export function getThreadManager() {
+  return threadManager;
+}
+
+export function getIntentClassifier() {
+  return intentClassifier;
+}
+
+export function getSignatureComputer() {
+  return signatureComputer;
 }

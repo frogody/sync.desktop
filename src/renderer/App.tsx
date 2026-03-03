@@ -11,6 +11,7 @@ import ChatWidget from './components/ChatWidget';
 import VoiceMode from './components/VoiceMode';
 import LoginScreen from './components/LoginScreen';
 import PermissionsSetup from './components/PermissionsSetup';
+import SemanticDashboard from './components/SemanticDashboard';
 
 type WidgetMode = 'avatar' | 'chat' | 'voice';
 type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
@@ -18,6 +19,7 @@ type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
 export default function App() {
   const [appState, setAppState] = useState<AppState>('loading');
   const [mode, setMode] = useState<WidgetMode>('avatar');
+  const [showDashboard, setShowDashboard] = useState(false);
   const [clickCount, setClickCount] = useState(0);
   const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -164,8 +166,12 @@ export default function App() {
           <FloatingAvatar onClick={handleAvatarClick} />
         )}
 
-        {mode === 'chat' && (
-          <ChatWidget onClose={handleClose} />
+        {mode === 'chat' && !showDashboard && (
+          <ChatWidget onClose={handleClose} onDashboard={() => setShowDashboard(true)} />
+        )}
+
+        {mode === 'chat' && showDashboard && (
+          <SemanticDashboard onBack={() => setShowDashboard(false)} />
         )}
 
         {mode === 'voice' && (

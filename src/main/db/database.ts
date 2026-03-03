@@ -354,6 +354,248 @@ function runMigrations(): void {
         INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('deep_context_capture_interval_ms', '15000');
       `,
     },
+    // ==========================================================================
+    // Semantic Foundation Migrations (006-009)
+    // ==========================================================================
+    {
+      name: '006_semantic_entities',
+      sql: `
+        -- Semantic entities: people, projects, tools, topics extracted from events
+        CREATE TABLE IF NOT EXISTS semantic_entities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_id TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          confidence REAL NOT NULL DEFAULT 0.5,
+          first_seen INTEGER NOT NULL,
+          last_seen INTEGER NOT NULL,
+          occurrence_count INTEGER NOT NULL DEFAULT 1,
+          metadata TEXT DEFAULT '{}',
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_entities_type ON semantic_entities(type);
+        CREATE INDEX IF NOT EXISTS idx_entities_name ON semantic_entities(name);
+        CREATE INDEX IF NOT EXISTS idx_entities_last_seen ON semantic_entities(last_seen);
+        CREATE INDEX IF NOT EXISTS idx_entities_synced ON semantic_entities(synced) WHERE synced = 0;
+
+        -- Entity aliases: alternative names that map to the same entity
+        CREATE TABLE IF NOT EXISTS entity_aliases (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_id TEXT NOT NULL REFERENCES semantic_entities(entity_id) ON DELETE CASCADE,
+          alias TEXT NOT NULL,
+          source TEXT NOT NULL,
+          frequency INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_aliases_entity ON entity_aliases(entity_id);
+        CREATE INDEX IF NOT EXISTS idx_aliases_alias ON entity_aliases(alias);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_aliases_unique ON entity_aliases(entity_id, alias, source);
+
+        -- Entity relationships: co-occurrence based links between entities
+        CREATE TABLE IF NOT EXISTS entity_relationships (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_entity_id TEXT NOT NULL REFERENCES semantic_entities(entity_id) ON DELETE CASCADE,
+          target_entity_id TEXT NOT NULL REFERENCES semantic_entities(entity_id) ON DELETE CASCADE,
+          relationship_type TEXT NOT NULL,
+          strength REAL NOT NULL DEFAULT 0.5,
+          evidence_count INTEGER NOT NULL DEFAULT 1,
+          last_evidence INTEGER NOT NULL,
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_relationships_source ON entity_relationships(source_entity_id);
+        CREATE INDEX IF NOT EXISTS idx_relationships_target ON entity_relationships(target_entity_id);
+        CREATE INDEX IF NOT EXISTS idx_relationships_type ON entity_relationships(relationship_type);
+
+        -- Links between context events and extracted entities
+        CREATE TABLE IF NOT EXISTS event_entity_links (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_id TEXT NOT NULL,
+          entity_id TEXT NOT NULL REFERENCES semantic_entities(entity_id) ON DELETE CASCADE,
+          role TEXT NOT NULL DEFAULT 'mentioned',
+          extraction_method TEXT NOT NULL,
+          confidence REAL NOT NULL DEFAULT 0.5,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_entities_event ON event_entity_links(event_id);
+        CREATE INDEX IF NOT EXISTS idx_event_entities_entity ON event_entity_links(entity_id);
+      `,
+    },
+    {
+      name: '007_semantic_activities',
+      sql: `
+        -- Semantic activity classifications
+        CREATE TABLE IF NOT EXISTS semantic_activities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          activity_id TEXT NOT NULL UNIQUE,
+          event_id TEXT NOT NULL,
+          activity_type TEXT NOT NULL,
+          activity_subtype TEXT,
+          confidence REAL NOT NULL DEFAULT 0.5,
+          classification_method TEXT NOT NULL,
+          duration_ms INTEGER,
+          metadata TEXT DEFAULT '{}',
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_activities_type ON semantic_activities(activity_type);
+        CREATE INDEX IF NOT EXISTS idx_activities_event ON semantic_activities(event_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_created ON semantic_activities(created_at);
+        CREATE INDEX IF NOT EXISTS idx_activities_synced ON semantic_activities(synced) WHERE synced = 0;
+
+        -- Transitions between consecutive activities
+        CREATE TABLE IF NOT EXISTS activity_transitions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          from_activity_id TEXT NOT NULL REFERENCES semantic_activities(activity_id) ON DELETE CASCADE,
+          to_activity_id TEXT NOT NULL REFERENCES semantic_activities(activity_id) ON DELETE CASCADE,
+          transition_time INTEGER NOT NULL,
+          gap_ms INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_transitions_from ON activity_transitions(from_activity_id);
+        CREATE INDEX IF NOT EXISTS idx_transitions_time ON activity_transitions(transition_time);
+      `,
+    },
+    {
+      name: '008_semantic_threads_intents',
+      sql: `
+        -- Context threads: coherent work sessions grouped by entity/activity/time similarity
+        CREATE TABLE IF NOT EXISTS semantic_threads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          thread_id TEXT NOT NULL UNIQUE,
+          title TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          started_at INTEGER NOT NULL,
+          last_activity_at INTEGER NOT NULL,
+          event_count INTEGER NOT NULL DEFAULT 0,
+          primary_entities TEXT DEFAULT '[]',
+          primary_activity_type TEXT,
+          metadata TEXT DEFAULT '{}',
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_threads_status ON semantic_threads(status);
+        CREATE INDEX IF NOT EXISTS idx_threads_last_activity ON semantic_threads(last_activity_at);
+        CREATE INDEX IF NOT EXISTS idx_threads_synced ON semantic_threads(synced) WHERE synced = 0;
+
+        -- Events assigned to threads
+        CREATE TABLE IF NOT EXISTS thread_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          thread_id TEXT NOT NULL REFERENCES semantic_threads(thread_id) ON DELETE CASCADE,
+          event_id TEXT NOT NULL,
+          relevance_score REAL NOT NULL DEFAULT 0.5,
+          added_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_thread_events_thread ON thread_events(thread_id);
+        CREATE INDEX IF NOT EXISTS idx_thread_events_event ON thread_events(event_id);
+
+        -- Transitions between threads (switches, merges, splits)
+        CREATE TABLE IF NOT EXISTS thread_transitions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          from_thread_id TEXT NOT NULL REFERENCES semantic_threads(thread_id) ON DELETE CASCADE,
+          to_thread_id TEXT NOT NULL REFERENCES semantic_threads(thread_id) ON DELETE CASCADE,
+          transition_type TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_thread_trans_from ON thread_transitions(from_thread_id);
+        CREATE INDEX IF NOT EXISTS idx_thread_trans_time ON thread_transitions(timestamp);
+
+        -- Intent classifications inferred from thread activity patterns
+        CREATE TABLE IF NOT EXISTS semantic_intents (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          intent_id TEXT NOT NULL UNIQUE,
+          thread_id TEXT REFERENCES semantic_threads(thread_id) ON DELETE SET NULL,
+          intent_type TEXT NOT NULL,
+          intent_subtype TEXT,
+          confidence REAL NOT NULL DEFAULT 0.5,
+          classification_method TEXT NOT NULL,
+          evidence TEXT DEFAULT '[]',
+          resolved_at INTEGER,
+          outcome TEXT,
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_intents_type ON semantic_intents(intent_type);
+        CREATE INDEX IF NOT EXISTS idx_intents_thread ON semantic_intents(thread_id);
+        CREATE INDEX IF NOT EXISTS idx_intents_synced ON semantic_intents(synced) WHERE synced = 0;
+
+        -- Activity sequences within an intent
+        CREATE TABLE IF NOT EXISTS intent_sequences (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          intent_id TEXT NOT NULL REFERENCES semantic_intents(intent_id) ON DELETE CASCADE,
+          activity_id TEXT NOT NULL REFERENCES semantic_activities(activity_id) ON DELETE CASCADE,
+          sequence_order INTEGER NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_intent_seq_intent ON intent_sequences(intent_id);
+
+        -- Entity-to-intent mappings
+        CREATE TABLE IF NOT EXISTS entity_intent_map (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_id TEXT NOT NULL REFERENCES semantic_entities(entity_id) ON DELETE CASCADE,
+          intent_id TEXT NOT NULL REFERENCES semantic_intents(intent_id) ON DELETE CASCADE,
+          role TEXT NOT NULL DEFAULT 'related',
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_entity_intent_entity ON entity_intent_map(entity_id);
+        CREATE INDEX IF NOT EXISTS idx_entity_intent_intent ON entity_intent_map(intent_id);
+      `,
+    },
+    {
+      name: '009_semantic_signatures',
+      sql: `
+        -- Behavioral signatures: long-term work pattern metrics
+        CREATE TABLE IF NOT EXISTS behavioral_signatures (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          signature_id TEXT NOT NULL UNIQUE,
+          category TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          current_value TEXT NOT NULL,
+          trend TEXT DEFAULT 'stable',
+          confidence REAL NOT NULL DEFAULT 0.5,
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          window_days INTEGER NOT NULL DEFAULT 30,
+          computed_at INTEGER NOT NULL,
+          privacy_level TEXT DEFAULT 'sync_allowed',
+          synced INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_signatures_category ON behavioral_signatures(category);
+        CREATE INDEX IF NOT EXISTS idx_signatures_metric ON behavioral_signatures(metric_name);
+        CREATE INDEX IF NOT EXISTS idx_signatures_computed ON behavioral_signatures(computed_at);
+        CREATE INDEX IF NOT EXISTS idx_signatures_synced ON behavioral_signatures(synced) WHERE synced = 0;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_signatures_unique ON behavioral_signatures(category, metric_name, window_days);
+
+        -- Semantic processing metadata
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('semantic_foundation_enabled', 'true');
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('last_semantic_cycle', NULL);
+        INSERT OR IGNORE INTO sync_metadata (key, value) VALUES ('last_signature_computation', NULL);
+      `,
+    },
   ];
 
   // Apply unapplied migrations

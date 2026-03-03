@@ -73,6 +73,13 @@ export const IPC_CHANNELS = {
   DEEP_CONTEXT_DISMISS_COMMITMENT: 'deep-context:dismiss-commitment',
   DEEP_CONTEXT_COMPLETE_COMMITMENT: 'deep-context:complete-commitment',
   DEEP_CONTEXT_GET_ENRICHED_CONTEXT: 'deep-context:get-enriched-context',
+
+  // Semantic Pipeline
+  SEMANTIC_GET_WORK_CONTEXT: 'semantic:get-work-context',
+  SEMANTIC_GET_ENTITIES: 'semantic:get-entities',
+  SEMANTIC_GET_THREADS: 'semantic:get-threads',
+  SEMANTIC_GET_SIGNATURES: 'semantic:get-signatures',
+  SEMANTIC_GET_ACTIVITY_DISTRIBUTION: 'semantic:get-activity-distribution',
 } as const;
 
 export type IPCChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

@@ -9,6 +9,13 @@ import { SummaryService } from './summaryService';
 import { JournalService } from './journalService';
 import { HourlySummary, DailyJournal, User } from '../../shared/types';
 import { getUnsyncedActivity, markActivitySynced } from '../db/queries';
+import {
+  getUnsyncedEntities, markEntitiesSynced,
+  getUnsyncedActivities, markActivitiesSynced,
+  getUnsyncedThreads, markThreadsSynced,
+  getUnsyncedIntents, markIntentsSynced,
+  getUnsyncedSignatures, markSignaturesSynced,
+} from '../db/queries';
 import { getAccessToken, getUser, setUser } from '../store';
 import { getDatabase } from '../db/database';
 import { refreshAccessToken } from './authUtils';
@@ -34,6 +41,11 @@ export interface SyncResult {
     summaries: number;
     journals: number;
     contextEvents: number;
+    semanticEntities: number;
+    semanticActivities: number;
+    semanticThreads: number;
+    semanticIntents: number;
+    behavioralSignatures: number;
   };
 }
 
@@ -164,7 +176,7 @@ export class CloudSyncService {
       return {
         success: false,
         error: 'Sync already in progress',
-        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
+        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0, semanticEntities: 0, semanticActivities: 0, semanticThreads: 0, semanticIntents: 0, behavioralSignatures: 0 },
       };
     }
 
@@ -172,7 +184,7 @@ export class CloudSyncService {
       return {
         success: false,
         error: 'Not authenticated',
-        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
+        syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0, semanticEntities: 0, semanticActivities: 0, semanticThreads: 0, semanticIntents: 0, behavioralSignatures: 0 },
       };
     }
 
@@ -181,7 +193,7 @@ export class CloudSyncService {
 
     const result: SyncResult = {
       success: true,
-      syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0 },
+      syncedItems: { activities: 0, summaries: 0, journals: 0, contextEvents: 0, semanticEntities: 0, semanticActivities: 0, semanticThreads: 0, semanticIntents: 0, behavioralSignatures: 0 },
     };
 
     try {
@@ -203,6 +215,13 @@ export class CloudSyncService {
 
       // Note: We don't sync raw activity logs to save bandwidth
       // Summaries and journals contain the aggregated data
+
+      // Sync semantic data
+      result.syncedItems.semanticEntities = await this.syncSemanticEntities();
+      result.syncedItems.semanticActivities = await this.syncSemanticActivities();
+      result.syncedItems.semanticThreads = await this.syncSemanticThreads();
+      result.syncedItems.semanticIntents = await this.syncSemanticIntents();
+      result.syncedItems.behavioralSignatures = await this.syncBehavioralSignatures();
 
       this.lastSyncTime = new Date();
       console.log('[sync] Sync completed:', result.syncedItems);
@@ -505,6 +524,212 @@ export class CloudSyncService {
     }
 
     return syncedCount;
+  }
+
+  // ============================================================================
+  // Semantic Data Sync
+  // ============================================================================
+
+  private async syncSemanticEntities(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsynced = getUnsyncedEntities(100);
+    if (unsynced.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsynced.length} semantic entities`);
+
+    const cloudData = unsynced.map(e => ({
+      user_id: user.id,
+      company_id: user.companyId,
+      entity_id: e.entityId,
+      name: e.name,
+      type: e.type,
+      confidence: e.confidence,
+      first_seen: new Date(e.firstSeen).toISOString(),
+      last_seen: new Date(e.lastSeen).toISOString(),
+      occurrence_count: e.occurrenceCount,
+      metadata: e.metadata,
+      privacy_level: e.privacyLevel,
+      created_at: new Date(e.createdAt).toISOString(),
+      updated_at: new Date(e.updatedAt).toISOString(),
+    }));
+
+    const { error } = await this.supabaseRequest(
+      'semantic_entities?on_conflict=user_id,entity_id',
+      'POST', cloudData, false, true
+    );
+
+    if (error) {
+      console.error('[sync] Semantic entities sync failed:', error.message);
+      this.syncErrors.push(`Semantic entities: ${error.message}`);
+      return 0;
+    }
+
+    markEntitiesSynced(unsynced.map(e => e.entityId));
+    return unsynced.length;
+  }
+
+  private async syncSemanticActivities(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsynced = getUnsyncedActivities(100);
+    if (unsynced.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsynced.length} semantic activities`);
+
+    const cloudData = unsynced.map(a => ({
+      user_id: user.id,
+      company_id: user.companyId,
+      activity_id: a.activityId,
+      event_id: a.eventId,
+      activity_type: a.activityType,
+      activity_subtype: a.activitySubtype,
+      confidence: a.confidence,
+      classification_method: a.classificationMethod,
+      duration_ms: a.durationMs,
+      metadata: a.metadata,
+      privacy_level: a.privacyLevel,
+      created_at: new Date(a.createdAt).toISOString(),
+    }));
+
+    const { error } = await this.supabaseRequest(
+      'semantic_activities?on_conflict=user_id,activity_id',
+      'POST', cloudData, false, true
+    );
+
+    if (error) {
+      console.error('[sync] Semantic activities sync failed:', error.message);
+      this.syncErrors.push(`Semantic activities: ${error.message}`);
+      return 0;
+    }
+
+    markActivitiesSynced(unsynced.map(a => a.activityId));
+    return unsynced.length;
+  }
+
+  private async syncSemanticThreads(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsynced = getUnsyncedThreads(100);
+    if (unsynced.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsynced.length} semantic threads`);
+
+    const cloudData = unsynced.map(t => ({
+      user_id: user.id,
+      company_id: user.companyId,
+      thread_id: t.threadId,
+      title: t.title,
+      status: t.status,
+      started_at: new Date(t.startedAt).toISOString(),
+      last_activity_at: new Date(t.lastActivityAt).toISOString(),
+      event_count: t.eventCount,
+      primary_entities: t.primaryEntities,
+      primary_activity_type: t.primaryActivityType,
+      metadata: t.metadata,
+      privacy_level: t.privacyLevel,
+      created_at: new Date(t.createdAt).toISOString(),
+      updated_at: new Date(t.updatedAt).toISOString(),
+    }));
+
+    const { error } = await this.supabaseRequest(
+      'semantic_threads?on_conflict=user_id,thread_id',
+      'POST', cloudData, false, true
+    );
+
+    if (error) {
+      console.error('[sync] Semantic threads sync failed:', error.message);
+      this.syncErrors.push(`Semantic threads: ${error.message}`);
+      return 0;
+    }
+
+    markThreadsSynced(unsynced.map(t => t.threadId));
+    return unsynced.length;
+  }
+
+  private async syncSemanticIntents(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsynced = getUnsyncedIntents(100);
+    if (unsynced.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsynced.length} semantic intents`);
+
+    const cloudData = unsynced.map(i => ({
+      user_id: user.id,
+      company_id: user.companyId,
+      intent_id: i.intentId,
+      thread_id: i.threadId,
+      intent_type: i.intentType,
+      intent_subtype: i.intentSubtype,
+      confidence: i.confidence,
+      classification_method: i.classificationMethod,
+      evidence: i.evidence,
+      resolved_at: i.resolvedAt ? new Date(i.resolvedAt).toISOString() : null,
+      outcome: i.outcome,
+      privacy_level: i.privacyLevel,
+      created_at: new Date(i.createdAt).toISOString(),
+      updated_at: new Date(i.updatedAt).toISOString(),
+    }));
+
+    const { error } = await this.supabaseRequest(
+      'semantic_intents?on_conflict=user_id,intent_id',
+      'POST', cloudData, false, true
+    );
+
+    if (error) {
+      console.error('[sync] Semantic intents sync failed:', error.message);
+      this.syncErrors.push(`Semantic intents: ${error.message}`);
+      return 0;
+    }
+
+    markIntentsSynced(unsynced.map(i => i.intentId));
+    return unsynced.length;
+  }
+
+  private async syncBehavioralSignatures(): Promise<number> {
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return 0;
+
+    const unsynced = getUnsyncedSignatures(100);
+    if (unsynced.length === 0) return 0;
+
+    console.log(`[sync] Syncing ${unsynced.length} behavioral signatures`);
+
+    const cloudData = unsynced.map(s => ({
+      user_id: user.id,
+      company_id: user.companyId,
+      signature_id: s.signatureId,
+      category: s.category,
+      metric_name: s.metricName,
+      current_value: s.currentValue,
+      trend: s.trend,
+      confidence: s.confidence,
+      sample_size: s.sampleSize,
+      window_days: s.windowDays,
+      computed_at: new Date(s.computedAt).toISOString(),
+      privacy_level: s.privacyLevel,
+      created_at: new Date(s.createdAt).toISOString(),
+      updated_at: new Date(s.updatedAt).toISOString(),
+    }));
+
+    const { error } = await this.supabaseRequest(
+      'behavioral_signatures?on_conflict=user_id,category,metric_name,window_days',
+      'POST', cloudData, false, true
+    );
+
+    if (error) {
+      console.error('[sync] Behavioral signatures sync failed:', error.message);
+      this.syncErrors.push(`Behavioral signatures: ${error.message}`);
+      return 0;
+    }
+
+    markSignaturesSynced(unsynced.map(s => s.signatureId));
+    return unsynced.length;
   }
 
   // ============================================================================

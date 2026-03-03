@@ -241,6 +241,143 @@ final class MLXActionClassifier: ActionClassifierProtocol {
             return nil
         }
     }
+
+    // MARK: - Semantic Classification
+
+    /// Classify a context event into the activity taxonomy using MLX inference.
+    func classifySemantic(payload: SemanticClassifyPayload) async -> [String: AnyCodableValue]? {
+        guard let container = modelContainer, isLoaded else { return nil }
+
+        let prompt = buildSemanticPrompt(payload: payload)
+
+        do {
+            let output = try await container.perform { (context: ModelContext) async throws -> String in
+                let userInput = UserInput(prompt: .text(prompt))
+                let lmInput = try await context.processor.prepare(input: userInput)
+
+                let generateParams = GenerateParameters(
+                    maxTokens: 80,
+                    temperature: 0.1
+                )
+
+                var outputText = ""
+                for try await generation in try MLXLMCommon.generate(
+                    input: lmInput,
+                    parameters: generateParams,
+                    context: context
+                ) {
+                    if let chunk = generation.chunk {
+                        outputText += chunk
+                    }
+                }
+
+                return outputText
+            }
+
+            return parseSemanticResponse(output, requestId: payload.requestId, task: payload.task)
+        } catch {
+            log("MLX semantic inference error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func buildSemanticPrompt(payload: SemanticClassifyPayload) -> String {
+        switch payload.task {
+        case "thread_label":
+            return """
+            Generate a short label (3-6 words) for this work thread.
+
+            Activities: \(payload.summary)
+            Key entities: \(payload.entities.joined(separator: ", "))
+
+            Respond ONLY with JSON: {"label":"short descriptive label","confidence":0.0-1.0}
+            """
+
+        case "intent_classify":
+            return """
+            Based on this activity sequence, what is the user's likely intent?
+
+            Thread activities:
+            \(payload.summary)
+
+            Entities involved: \(payload.entities.joined(separator: ", "))
+            Thread duration: \(payload.windowTitle)
+
+            Intents: SHIP (delivering features/fixes), MANAGE (coordinating/reviewing), PLAN (designing/architecting), MAINTAIN (refactoring/updating), RESPOND (handling requests/issues)
+
+            Respond ONLY with JSON: {"intent":"TYPE","subtype":"specific","confidence":0.0-1.0,"evidence":["reason"]}
+            """
+
+        default: // activity_classify
+            return """
+            Classify this work activity into exactly one category.
+
+            App: \(payload.application)
+            Window: \(payload.windowTitle)
+            Summary: \(payload.summary)
+            Entities: \(payload.entities.joined(separator: ", "))
+            Current guess: \(payload.ruleActivityType ?? "unknown") / \(payload.ruleActivitySubtype ?? "unknown")
+
+            Categories: BUILDING (coding/debugging/designing/writing/composing), INVESTIGATING (reading/searching/reviewing/analyzing/learning), COMMUNICATING (messaging/emailing/meeting/presenting/calling), ORGANIZING (planning/filing/scheduling/documenting/tagging), OPERATING (deploying/monitoring/configuring/testing_infra/updating), CONTEXT_SWITCHING (app_switch/topic_switch/break/interruption)
+
+            Respond ONLY with JSON: {"activityType":"CATEGORY","activitySubtype":"subtype","confidence":0.0-1.0}
+            """
+        }
+    }
+
+    private func parseSemanticResponse(_ response: String, requestId: String, task: String = "activity_classify") -> [String: AnyCodableValue]? {
+        guard let jsonStart = response.firstIndex(of: "{"),
+              let jsonEnd = response.lastIndex(of: "}") else {
+            log("Semantic response has no JSON: \(response.prefix(100))")
+            return nil
+        }
+
+        let jsonString = String(response[jsonStart...jsonEnd])
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        let confidence: Double
+        if let c = json["confidence"] as? Double { confidence = c }
+        else { confidence = 0.7 }
+
+        switch task {
+        case "thread_label":
+            guard let label = json["label"] as? String else { return nil }
+            return [
+                "requestId": .string(requestId),
+                "task": .string("thread_label"),
+                "label": .string(label),
+                "confidence": .double(confidence),
+            ]
+
+        case "intent_classify":
+            guard let intent = json["intent"] as? String else { return nil }
+            var result: [String: AnyCodableValue] = [
+                "requestId": .string(requestId),
+                "task": .string("intent_classify"),
+                "intent": .string(intent),
+                "confidence": .double(confidence),
+            ]
+            if let subtype = json["subtype"] as? String {
+                result["subtype"] = .string(subtype)
+            }
+            if let evidence = json["evidence"] as? [String] {
+                result["evidence"] = .array(evidence.map { .string($0) })
+            }
+            return result
+
+        default: // activity_classify
+            guard let activityType = json["activityType"] as? String else { return nil }
+            return [
+                "requestId": .string(requestId),
+                "task": .string("activity_classify"),
+                "activityType": .string(activityType),
+                "activitySubtype": .string(json["activitySubtype"] as? String ?? ""),
+                "confidence": .double(confidence),
+            ]
+        }
+    }
 }
 
 // ============================================================================

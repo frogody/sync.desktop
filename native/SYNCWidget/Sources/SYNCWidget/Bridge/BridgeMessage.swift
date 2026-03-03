@@ -151,6 +151,78 @@ struct ActionResultPayload {
     }
 }
 
+// MARK: - Semantic Classify Payload (from semantic_classify message)
+
+struct SemanticClassifyPayload {
+    let requestId: String
+    let task: String  // "activity_classify" | "thread_label" | "intent_classify"
+
+    // activity_classify fields
+    let eventType: String
+    let summary: String
+    let entities: [String]
+    let application: String
+    let windowTitle: String
+    let ruleActivityType: String?
+    let ruleActivitySubtype: String?
+    let ruleConfidence: Double?
+
+    init?(from payload: [String: AnyCodableValue]) {
+        guard let requestId = payload["requestId"]?.stringValue,
+              let task = payload["task"]?.stringValue
+        else { return nil }
+
+        self.requestId = requestId
+        self.task = task
+
+        switch task {
+        case "thread_label", "intent_classify":
+            // These tasks send activities as a string summary and entities as a comma-separated string
+            self.summary = payload["activities"]?.stringValue ?? ""
+            self.eventType = ""
+            self.application = ""
+            // intent_classify reuses windowTitle for thread duration
+            self.windowTitle = payload["threadDuration"]?.stringValue ?? ""
+            // Parse entities: either a string array or a comma-separated string
+            if let entitiesStr = payload["entities"]?.stringValue {
+                self.entities = entitiesStr.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            } else {
+                self.entities = payload["entities"]?.stringArrayValue ?? []
+            }
+            self.ruleActivityType = nil
+            self.ruleActivitySubtype = nil
+            self.ruleConfidence = nil
+
+        default: // activity_classify
+            guard let eventType = payload["eventType"]?.stringValue,
+                  let summary = payload["summary"]?.stringValue
+            else { return nil }
+
+            self.eventType = eventType
+            self.summary = summary
+            self.entities = payload["entities"]?.stringArrayValue ?? []
+
+            if case .dictionary(let src) = payload["source"] {
+                self.application = src["application"]?.stringValue ?? ""
+                self.windowTitle = src["windowTitle"]?.stringValue ?? ""
+            } else {
+                self.application = ""
+                self.windowTitle = ""
+            }
+
+            if case .dictionary(let rule) = payload["ruleClassification"] {
+                self.ruleActivityType = rule["activityType"]?.stringValue
+                self.ruleActivitySubtype = rule["activitySubtype"]?.stringValue
+                self.ruleConfidence = rule["confidence"]?.doubleValue
+            } else {
+                self.ruleActivityType = nil
+                self.ruleActivitySubtype = nil
+                self.ruleConfidence = nil
+            }
+        }
+    }
+}
+
 // MARK: - Type-erased Codable value for flexible JSON
 
 enum AnyCodableValue: Codable, Equatable {

@@ -119,6 +119,13 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
                 log("Action result: \(result.id) success=\(result.success)")
             }
 
+        case "semantic_classify":
+            if let payload = SemanticClassifyPayload(from: message.payload) {
+                classifySemanticEvent(payload)
+            } else {
+                log("Failed to parse semantic_classify payload")
+            }
+
         case "shutdown":
             log("Shutdown requested")
             DispatchQueue.main.async {
@@ -183,6 +190,40 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
                         ]),
                     ]
                 ))
+            }
+        }
+    }
+
+    // MARK: - Semantic Classification
+
+    private func classifySemanticEvent(_ payload: SemanticClassifyPayload) {
+        guard classifierReady else {
+            log("Classifier not ready for semantic classify")
+            return
+        }
+
+        guard let mlxClassifier = classifier as? MLXActionClassifier else {
+            log("Semantic classify requires MLX classifier (fallback not supported)")
+            return
+        }
+
+        Task {
+            let startTime = Date()
+            guard let result = await mlxClassifier.classifySemantic(payload: payload) else {
+                log("Semantic classification returned nil for request: \(payload.requestId)")
+                return
+            }
+
+            let latencyMs = Date().timeIntervalSince(startTime) * 1000
+            var fullResult = result
+            fullResult["latencyMs"] = .double(latencyMs)
+
+            await MainActor.run {
+                self.stdoutWriter.send(OutgoingMessage(
+                    type: "semantic_result",
+                    payload: fullResult
+                ))
+                self.log("Semantic result sent: \(payload.requestId) in \(Int(latencyMs))ms")
             }
         }
     }

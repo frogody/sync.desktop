@@ -24,9 +24,22 @@ import {
   getDeepContextManager,
   getNotchBridge,
   getDeepContextEngine,
+  getEntityRegistry,
+  getThreadManager,
+  getIntentClassifier,
+  getSignatureComputer,
 } from '../index';
 import { refreshAccessToken } from '../services/authUtils';
-import { getRecentActivity, getTodayJournal, getJournalHistory } from '../db/queries';
+import {
+  getRecentActivity,
+  getTodayJournal,
+  getJournalHistory,
+  getRecentEntities,
+  getActiveThreads,
+  getActiveIntents,
+  getAllCurrentSignatures,
+  getActivityDistribution,
+} from '../db/queries';
 import {
   store,
   getSettings,
@@ -583,6 +596,75 @@ export function setupIpcHandlers(
         return { success: true, data: context };
       }
       return { success: true, data: null };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // ============================================================================
+  // Semantic Pipeline
+  // ============================================================================
+
+  ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_WORK_CONTEXT, () => {
+    try {
+      const threads = getActiveThreads();
+      const topThread = threads.length > 0 ? threads[0] : null;
+      const intents = getActiveIntents();
+      const topIntent = intents.length > 0 ? intents[0] : null;
+      const entities = getRecentEntities(10);
+      const distribution = getActivityDistribution(1);
+      const signatures = getAllCurrentSignatures();
+
+      return {
+        success: true,
+        data: {
+          currentThread: topThread,
+          currentIntent: topIntent,
+          recentEntities: entities,
+          activityDistribution: distribution,
+          signatures,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_ENTITIES, (_event, options?: { type?: string; limit?: number }) => {
+    try {
+      const limit = options?.limit ?? 50;
+      let entities = getRecentEntities(limit);
+      if (options?.type) {
+        entities = entities.filter(e => e.type === options.type);
+      }
+      return { success: true, data: entities };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_THREADS, () => {
+    try {
+      const threads = getActiveThreads();
+      return { success: true, data: threads };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_SIGNATURES, () => {
+    try {
+      const signatures = getAllCurrentSignatures();
+      return { success: true, data: signatures };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_ACTIVITY_DISTRIBUTION, (_event, days?: number) => {
+    try {
+      const distribution = getActivityDistribution(days ?? 7);
+      return { success: true, data: distribution };
     } catch (error) {
       return { success: false, error: String(error) };
     }

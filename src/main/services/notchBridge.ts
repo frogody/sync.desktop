@@ -19,6 +19,7 @@ import { getFloatingWidget, setNativeWidgetActive } from '../windows/floatingWid
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../shared/constants';
 import type { ContextEvent } from '../../deep-context/types';
 import type { DeepContextEngine } from '../../deep-context';
+import type { ActivityClassification } from './semantic/types';
 
 // ============================================================================
 // Types
@@ -359,6 +360,64 @@ export class NotchBridge extends EventEmitter {
     });
   }
 
+  /** Send a context event to Swift for semantic activity classification via MLX */
+  sendSemanticClassify(requestId: string, event: ContextEvent, ruleResult: ActivityClassification): void {
+    this.send({
+      type: 'semantic_classify',
+      payload: {
+        requestId,
+        task: 'activity_classify',
+        eventType: event.eventType,
+        summary: event.semanticPayload.summary,
+        entities: event.semanticPayload.entities,
+        source: {
+          application: event.source.application,
+          windowTitle: event.source.windowTitle,
+        },
+        ruleClassification: {
+          activityType: ruleResult.activityType,
+          activitySubtype: ruleResult.activitySubtype,
+          confidence: ruleResult.confidence,
+        },
+      },
+    });
+  }
+
+  /** Send a thread's activity summary to Swift for label generation via MLX */
+  sendThreadLabel(requestId: string, activities: { type: string; app: string; title: string }[], entities: string[]): void {
+    this.send({
+      type: 'semantic_classify',
+      payload: {
+        requestId,
+        task: 'thread_label',
+        activities: activities.map(a => `${a.type} in ${a.app} - ${a.title}`).join('; '),
+        entities: entities.join(', '),
+      },
+    });
+  }
+
+  /** Send a thread's activity sequence to Swift for intent classification via MLX */
+  sendIntentClassify(
+    requestId: string,
+    activities: { type: string; subtype: string | null; app: string; title: string; duration: string }[],
+    entities: string[],
+    threadDurationMin: number,
+  ): void {
+    const numberedList = activities
+      .map((a, i) => `${i + 1}. ${a.type}${a.subtype ? `/${a.subtype}` : ''} in ${a.app} - ${a.title} (${a.duration})`)
+      .join('\n');
+    this.send({
+      type: 'semantic_classify',
+      payload: {
+        requestId,
+        task: 'intent_classify',
+        activities: numberedList,
+        entities: entities.join(', '),
+        threadDuration: `${threadDurationMin} minutes`,
+      },
+    });
+  }
+
   // ============================================================================
   // Handle Messages (Swift -> Electron)
   // ============================================================================
@@ -432,6 +491,20 @@ export class NotchBridge extends EventEmitter {
       case 'error':
         console.error('[notch-widget] Error:', msg.payload.message);
         break;
+
+      case 'semantic_result': {
+        const result = {
+          requestId: msg.payload.requestId as string,
+          task: msg.payload.task as string,
+          activityType: msg.payload.activityType as string,
+          activitySubtype: (msg.payload.activitySubtype as string) || null,
+          confidence: msg.payload.confidence as number,
+          latencyMs: msg.payload.latencyMs as number | undefined,
+        };
+        console.log('[notch-bridge] Semantic result:', result.requestId, result.activityType, `(${result.confidence})`);
+        this.emit('semantic_result', result);
+        break;
+      }
 
       default:
         console.log('[notch-bridge] Unknown message type:', msg.type);

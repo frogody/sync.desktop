@@ -41,6 +41,12 @@ export class Scheduler {
   // Callbacks for cloud sync (will be set by CloudSyncService)
   private onSyncRequest: (() => Promise<void>) | null = null;
 
+  // Callback for semantic processing cycle (60s)
+  private onSemanticCycle: (() => Promise<void>) | null = null;
+
+  // Callback for signature computation (6h)
+  private onSignatureComputation: (() => Promise<void>) | null = null;
+
   constructor(
     summaryService: SummaryService,
     journalService: JournalService,
@@ -77,6 +83,12 @@ export class Scheduler {
 
     // Schedule cloud sync
     this.scheduleSync();
+
+    // Schedule semantic processing cycle (60s)
+    this.scheduleSemanticCycle();
+
+    // Schedule signature computation (6h)
+    this.scheduleSignatureComputation();
 
     console.log('[scheduler] All tasks scheduled');
   }
@@ -228,6 +240,43 @@ export class Scheduler {
     setTimeout(() => {
       this.runSync();
     }, 30000);
+  }
+
+  private scheduleSemanticCycle(): void {
+    const interval = setInterval(() => {
+      this.runSemanticCycle();
+    }, 60 * 1000); // Every 60 seconds
+
+    this.tasks.set('semantic-cycle', {
+      name: 'semantic-cycle',
+      interval,
+      lastRun: null,
+      isRunning: false,
+    });
+
+    // Run initial cycle after 15 seconds (let services initialize)
+    setTimeout(() => {
+      this.runSemanticCycle();
+    }, 15000);
+  }
+
+  private scheduleSignatureComputation(): void {
+    // Run every 6 hours
+    const interval = setInterval(() => {
+      this.runSignatureComputation();
+    }, 6 * 60 * 60 * 1000);
+
+    this.tasks.set('signature-computation', {
+      name: 'signature-computation',
+      interval,
+      lastRun: null,
+      isRunning: false,
+    });
+
+    // Initial run after 60 seconds (let semantic data accumulate first)
+    setTimeout(() => {
+      this.runSignatureComputation();
+    }, 60000);
   }
 
   // ============================================================================
@@ -407,6 +456,50 @@ export class Scheduler {
     }
   }
 
+  private async runSemanticCycle(): Promise<void> {
+    const task = this.tasks.get('semantic-cycle');
+    if (task?.isRunning) {
+      console.log('[scheduler] Semantic cycle already running, skipping');
+      return;
+    }
+
+    if (!this.onSemanticCycle) return;
+
+    if (task) task.isRunning = true;
+
+    try {
+      await this.onSemanticCycle();
+      if (task) task.lastRun = new Date();
+    } catch (error) {
+      console.error('[scheduler] Semantic cycle failed:', error);
+    } finally {
+      if (task) task.isRunning = false;
+    }
+  }
+
+  private async runSignatureComputation(): Promise<void> {
+    const task = this.tasks.get('signature-computation');
+    if (task?.isRunning) {
+      console.log('[scheduler] Signature computation already running, skipping');
+      return;
+    }
+
+    if (!this.onSignatureComputation) return;
+
+    if (task) task.isRunning = true;
+
+    try {
+      console.log('[scheduler] Running signature computation');
+      await this.onSignatureComputation();
+      if (task) task.lastRun = new Date();
+      console.log('[scheduler] Signature computation completed');
+    } catch (error) {
+      console.error('[scheduler] Signature computation failed:', error);
+    } finally {
+      if (task) task.isRunning = false;
+    }
+  }
+
   // ============================================================================
   // Public API
   // ============================================================================
@@ -416,6 +509,20 @@ export class Scheduler {
    */
   setSyncCallback(callback: () => Promise<void>): void {
     this.onSyncRequest = callback;
+  }
+
+  /**
+   * Register callback for semantic processing cycle (60s)
+   */
+  setSemanticCycleCallback(callback: () => Promise<void>): void {
+    this.onSemanticCycle = callback;
+  }
+
+  /**
+   * Register callback for signature computation (6h)
+   */
+  setSignatureComputationCallback(callback: () => Promise<void>): void {
+    this.onSignatureComputation = callback;
   }
 
   /**

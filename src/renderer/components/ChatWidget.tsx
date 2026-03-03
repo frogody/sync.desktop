@@ -50,6 +50,7 @@ interface ChatMessage {
 
 interface ChatWidgetProps {
   onClose: () => void;
+  onDashboard?: () => void;
 }
 
 interface ActivityContext {
@@ -65,7 +66,7 @@ interface SyncStatus {
   pendingItems: { summaries: number; journals: number };
 }
 
-export default function ChatWidget({ onClose }: ChatWidgetProps) {
+export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -500,6 +501,19 @@ export default function ChatWidget({ onClose }: ChatWidgetProps) {
               <path d="M21 3v9h-9M3 21v-9h9" />
             </svg>
           </button>
+          {/* Dashboard Button */}
+          {onDashboard && (
+            <button
+              onClick={onDashboard}
+              className="no-drag p-2 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+              title="Work Insights"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3v18h18" />
+                <path d="M7 16l4-8 4 4 4-6" />
+              </svg>
+            </button>
+          )}
           {/* Close Button */}
           <button
             onClick={onClose}

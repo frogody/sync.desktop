@@ -118,6 +118,39 @@ export interface ElectronAPI {
   }>;
   requestPermission: (permission: string) => Promise<{ success: boolean }>;
 
+  // Semantic Pipeline
+  getWorkContext: () => Promise<{
+    success: boolean;
+    data?: {
+      currentThread: any;
+      currentIntent: any;
+      recentEntities: any[];
+      activityDistribution: any[];
+      signatures: any[];
+    };
+    error?: string;
+  }>;
+  getSemanticEntities: (options?: { type?: string; limit?: number }) => Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+  }>;
+  getSemanticThreads: () => Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+  }>;
+  getBehavioralSignatures: () => Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+  }>;
+  getActivityDistribution: (days?: number) => Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+  }>;
+
   // Platform
   platform: string;
 }
@@ -185,6 +218,18 @@ const electronAPI: ElectronAPI = {
   checkPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_CHECK_PERMISSIONS),
   requestPermission: (permission) =>
     ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, permission),
+
+  // Semantic Pipeline
+  getWorkContext: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_WORK_CONTEXT),
+  getSemanticEntities: (options) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_ENTITIES, options),
+  getSemanticThreads: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_THREADS),
+  getBehavioralSignatures: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_SIGNATURES),
+  getActivityDistribution: (days) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_ACTIVITY_DISTRIBUTION, days),
 
   // Platform
   platform: process.platform,
