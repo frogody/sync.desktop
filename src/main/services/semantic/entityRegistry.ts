@@ -187,6 +187,53 @@ const COMMON_WORDS = new Set([
   'Google', 'Apple', 'Microsoft',
 ]);
 
+// Names that look like people but are actually app names, window titles, or noise
+const NOT_PEOPLE = new Set([
+  // App names that match capitalized multi-word pattern
+  'google chrome', 'claude code', 'visual studio', 'visual studio code',
+  'vs code', 'sublime text', 'intellij idea', 'microsoft teams',
+  'microsoft word', 'microsoft excel', 'microsoft outlook',
+  'apple music', 'apple mail', 'apple notes', 'apple maps',
+  'docker desktop', 'adobe photoshop', 'adobe illustrator',
+  'adobe premiere', 'adobe acrobat', 'brave browser',
+  'arc browser', 'firefox browser', 'system preferences',
+  'system settings', 'activity monitor', 'disk utility',
+  'app store', 'mac app', 'electron app',
+  // Window title fragments that match name pattern
+  'using terminal', 'using chrome', 'using google chrome',
+  'using safari', 'using firefox', 'using slack',
+  'using cursor', 'using finder', 'using arc',
+  'new tab', 'new window', 'new file', 'new document',
+  'no title', 'sign in', 'log in', 'log out',
+  'page not', 'not found', 'access denied',
+  'mental health', 'health care', 'mental health care',
+  'taxi eindhoven', 'taxi utrecht', 'taxi amsterdam',
+  'ha job', 'job board', 'job search',
+  // Common false-positive patterns
+  'open source', 'real time', 'full stack', 'front end', 'back end',
+  'pull request', 'merge request', 'code review', 'stack overflow',
+  'hello world', 'getting started', 'quick start', 'read me',
+  'change log', 'release notes', 'bug report', 'feature request',
+]);
+
+// Garbage topics that shouldn't be stored as entities at all
+const GARBAGE_TOPICS = new Set([
+  // Common single-word noise
+  'is', 'the', 'and', 'for', 'not', 'are', 'but', 'had', 'has', 'was',
+  'main', 'test', 'build', 'index', 'page', 'app', 'config', 'data',
+  'true', 'false', 'null', 'undefined', 'none', 'default', 'error',
+  // Window title fragments that become fake topics
+  'taxi eindhoven airport', 'taxi utrecht', 'taxi amsterdam',
+  'mental health care', 'mental health', 'health care',
+  'ha job', 'job board', 'word processing', 'text editing',
+  'web browsing', 'file management', 'system monitor',
+  'claude max', 'claude pro', 'new tab', 'loading',
+  'home page', 'welcome page', 'sign in', 'sign up',
+  'cookie policy', 'privacy policy', 'terms of service',
+  'not found', 'access denied', 'page not found',
+  'open open', 'untitled untitled',
+]);
+
 // ============================================================================
 // LRU Cache
 // ============================================================================
@@ -374,10 +421,10 @@ export class EntityRegistry extends EventEmitter {
       }
     }
 
-    // 4. Topic entities from semantic payload entities (existing)
+    // 4. Topic entities from semantic payload entities — with strict filtering
     if (event.semanticPayload.entities) {
       for (const entityStr of event.semanticPayload.entities) {
-        if (!seen.has(this.normalizeKey(entityStr)) && !COMMON_WORDS.has(entityStr)) {
+        if (!seen.has(this.normalizeKey(entityStr)) && this.isValidTopic(entityStr)) {
           const resolved = this.resolveOrCreate(entityStr, 'topic', 'regex', now, 'deep_context');
           entities.push(resolved);
           seen.add(this.normalizeKey(resolved.name));
@@ -385,13 +432,13 @@ export class EntityRegistry extends EventEmitter {
       }
     }
 
-    // 4.5 Skill signal entities from semantic payload
+    // 4.5 Skill signal entities from semantic payload — with strict filtering
     if (event.semanticPayload.skillSignals && Array.isArray(event.semanticPayload.skillSignals)) {
       for (const signal of event.semanticPayload.skillSignals) {
         const skillPath = (signal as any).skillPath;
         if (Array.isArray(skillPath) && skillPath.length > 0) {
           const leafSkill = skillPath[skillPath.length - 1];
-          if (leafSkill && typeof leafSkill === 'string' && !seen.has(this.normalizeKey(leafSkill))) {
+          if (leafSkill && typeof leafSkill === 'string' && !seen.has(this.normalizeKey(leafSkill)) && this.isValidTopic(leafSkill)) {
             const resolved = this.resolveOrCreate(leafSkill, 'topic', 'rule', now, 'skill_signal');
             entities.push(resolved);
             seen.add(this.normalizeKey(leafSkill));
@@ -676,26 +723,42 @@ export class EntityRegistry extends EventEmitter {
     if (!text || text.length < 5) return [];
     const people: string[] = [];
 
+    // Build a set of known tool/app names to exclude from person detection
+    const appNamesLower = new Set(Object.values(APP_TOOL_MAP).map(n => n.toLowerCase()));
+    Object.keys(APP_TOOL_MAP).forEach(k => appNamesLower.add(k));
+
+    const isNotPerson = (name: string): boolean => {
+      const lower = name.toLowerCase().trim();
+      if (NOT_PEOPLE.has(lower)) return true;
+      if (appNamesLower.has(lower)) return true;
+      // "Using X" pattern is never a person
+      if (/^using\s+/i.test(name)) return true;
+      // Single word repeated ("Open Open")
+      const words = name.split(/\s+/);
+      if (words.length === 2 && words[0].toLowerCase() === words[1].toLowerCase()) return true;
+      return false;
+    };
+
     // Targeted person extraction from window title patterns (high confidence)
     for (const pattern of PERSON_TITLE_PATTERNS) {
       const match = text.match(pattern);
       if (match?.[1]) {
         const name = match[1].trim();
-        if (name.length > 2 && name.length < 40 && !COMMON_WORDS.has(name)) {
+        if (name.length > 2 && name.length < 40 && !COMMON_WORDS.has(name) && !isNotPerson(name)) {
           people.push(name);
         }
       }
     }
 
-    // Multi-word capitalized names
+    // Multi-word capitalized names — ONLY from specific person-related contexts
+    // Don't blindly match every capitalized phrase; require person context
     NAME_PATTERN.lastIndex = 0;
     const nameMatches = text.matchAll(NAME_PATTERN);
     for (const match of nameMatches) {
       const name = match[1] || match[0];
       if (!COMMON_WORDS.has(name) && name.length > 3 && name.length < 40) {
-        // Heuristic: 2-3 word capitalized names are likely people
         const wordCount = name.split(/\s+/).length;
-        if (wordCount >= 2 && wordCount <= 3) {
+        if (wordCount >= 2 && wordCount <= 3 && !isNotPerson(name)) {
           people.push(name.trim());
         }
       }
@@ -711,6 +774,57 @@ export class EntityRegistry extends EventEmitter {
     }
 
     return [...new Set(people)].slice(0, 10);
+  }
+
+  // ============================================================================
+  // Topic Validation
+  // ============================================================================
+
+  private isValidTopic(text: string): boolean {
+    if (!text || text.length < 2) return false;
+    const lower = text.toLowerCase().trim();
+
+    // Reject common words
+    if (COMMON_WORDS.has(text)) return false;
+
+    // Reject known garbage
+    if (GARBAGE_TOPICS.has(lower)) return false;
+
+    // Reject very short (1-2 chars) or very long strings
+    if (lower.length < 3 || lower.length > 50) return false;
+
+    // Reject strings that are just numbers
+    if (/^\d+$/.test(lower)) return false;
+
+    // Reject strings that are common file/directory names
+    if (GENERIC_DIRECTORIES.has(lower)) return false;
+
+    // Reject app names (these should be tools, not topics)
+    if (APP_TOOL_MAP[lower]) return false;
+
+    // Reject strings with too many spaces (window title fragments)
+    const words = lower.split(/\s+/);
+    if (words.length > 4) return false;
+
+    // Reject if it looks like a URL fragment
+    if (/^https?:|\.com|\.org|\.net|\.io/i.test(lower)) return false;
+
+    // Reject "Using X" patterns
+    if (/^using\s+/i.test(lower)) return false;
+
+    // Reject if all words are common English words (not technical terms)
+    const commonEnglish = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'be', 'been',
+      'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+      'should', 'may', 'might', 'can', 'shall', 'not', 'no', 'yes',
+      'it', 'its', 'my', 'your', 'his', 'her', 'our', 'their',
+      'up', 'out', 'off', 'over', 'into', 'about', 'then', 'than',
+      'so', 'if', 'when', 'what', 'how', 'where', 'who', 'which',
+    ]);
+    if (words.every(w => commonEnglish.has(w))) return false;
+
+    return true;
   }
 
   // ============================================================================
