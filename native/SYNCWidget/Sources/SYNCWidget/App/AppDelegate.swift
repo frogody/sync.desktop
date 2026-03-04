@@ -140,58 +140,11 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Event Classification
 
     private func classifyEvent(_ event: ContextEventPayload) {
-        guard classifierReady, let classifier = classifier else {
-            log("Classifier not ready, skipping event: \(event.eventType)")
-            return
-        }
-
-        Task {
-            guard let result = await classifier.classify(event: event) else {
-                return  // Classifier returned nil (fallback already forwarded, or parse error)
-            }
-
-            guard result.actionable else { return }
-
-            let actionId = UUID().uuidString
-            let eventHash = generateEventHash(event)
-
-            await MainActor.run {
-                if result.confidence > 0.7 {
-                    // High confidence: show in notch immediately
-                    self.viewModel?.showAction(action: ActionPayload(
-                        id: actionId,
-                        title: result.title,
-                        subtitle: nil,
-                        actionType: result.actionType
-                    ))
-                    self.log("MLX action shown (confidence: \(String(format: "%.2f", result.confidence))): \(result.title)")
-                } else if result.confidence > 0.5 {
-                    // Medium confidence: don't show locally, send to cloud for validation
-                    self.log("MLX action deferred to cloud (confidence: \(String(format: "%.2f", result.confidence))): \(result.title)")
-                } else {
-                    // Low confidence: discard
-                    return
-                }
-
-                // Send action_detected to Electron for cloud enrichment
-                self.stdoutWriter.send(OutgoingMessage(
-                    type: "action_detected",
-                    payload: [
-                        "id": .string(actionId),
-                        "eventHash": .string(eventHash),
-                        "title": .string(result.title),
-                        "actionType": .string(result.actionType),
-                        "confidence": .double(Double(result.confidence)),
-                        "localPayload": .dictionary([
-                            "eventType": .string(event.eventType),
-                            "summary": .string(event.summary),
-                            "source": .string(event.source.application),
-                            "windowTitle": .string(event.source.windowTitle),
-                        ]),
-                    ]
-                ))
-            }
-        }
+        // Local MLX action classification disabled — all task suggestions now come
+        // from the web-first suggest-action pipeline which has full business context
+        // (invoices, deals, contacts, amounts, deadlines).
+        // MLX classifySemantic() remains active for activity analysis.
+        return
     }
 
     // MARK: - Semantic Classification
