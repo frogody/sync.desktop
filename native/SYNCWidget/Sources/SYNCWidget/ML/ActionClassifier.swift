@@ -158,6 +158,59 @@ final class MLXActionClassifier: ActionClassifierProtocol {
         }
     }
 
+    // MARK: - Task Detection Rules
+
+    /// Rule-based pre-check for task-worthy moments before LLM inference.
+    /// Returns a hint string appended to the prompt, or nil if no rules matched.
+    private func detectTaskSignals(event: ContextEventPayload) -> String? {
+        let summary = event.summary.lowercased()
+        let windowTitle = event.source.windowTitle.lowercased()
+        let app = event.source.application.lowercased()
+        let combined = "\(summary) \(windowTitle)"
+
+        var signals: [String] = []
+
+        // 1. Email/message with action words
+        let actionPatterns = [
+            "please review", "can you send", "could you", "by friday", "by monday",
+            "by tomorrow", "by end of day", "by eod", "deadline", "asap", "urgent",
+            "reminder", "follow up", "follow-up", "action required", "action needed",
+            "please confirm", "let me know", "waiting for", "don't forget", "do not forget",
+            "make sure to", "need you to", "assigned to you", "your task"
+        ]
+        for pattern in actionPatterns {
+            if combined.contains(pattern) {
+                signals.append("ACTION_WORDS: detected '\(pattern)' — likely a direct request or deadline")
+                break
+            }
+        }
+
+        // 2. Calendar events starting soon (prep reminder)
+        if event.eventType == "calendar_event" || app.contains("calendar") || app.contains("outlook") {
+            if combined.contains("in 30 min") || combined.contains("in 15 min") ||
+               combined.contains("starting soon") || combined.contains("starts at") {
+                signals.append("MEETING_PREP: calendar event starting soon — suggest prep reminder")
+            }
+        }
+
+        // 3. @mentions or direct requests in messaging apps
+        let messagingApps = ["slack", "teams", "discord", "whatsapp", "messages", "telegram"]
+        let isMessaging = messagingApps.contains(where: { app.contains($0) })
+        if isMessaging {
+            if combined.contains("@") || combined.contains("mentioned you") ||
+               combined.contains("direct message") || combined.contains("replied to you") {
+                signals.append("MENTION: @mention or direct message detected in messaging app")
+            }
+        }
+
+        // 4. Repeated context switches to same document (may indicate being stuck)
+        if event.eventType == "context_switch" || event.eventType == "repeated_focus" {
+            signals.append("CONTEXT_SWITCH: repeated focus on same content — may need a task to track progress")
+        }
+
+        return signals.isEmpty ? nil : "TASK DETECTION SIGNALS:\n" + signals.joined(separator: "\n")
+    }
+
     // MARK: - Prompt Construction
 
     private func buildPrompt(event: ContextEventPayload) -> String {
@@ -183,12 +236,15 @@ final class MLXActionClassifier: ActionClassifierProtocol {
             }
         }
 
+        let taskSignals = detectTaskSignals(event: event)
+        let signalBlock = taskSignals.map { "\n\n<task_signals>\n\($0)\n</task_signals>" } ?? ""
+
         return """
         Analyze this user activity and determine if there's an actionable task the user should be reminded about.
 
         <context>
         \(eventInfo)
-        </context>
+        </context>\(signalBlock)
 
         Is this actionable? Respond ONLY with JSON, no other text:
         {"actionable":true/false,"type":"calendar_event|task_create|email_reply|reminder|none","title":"max 50 char notification text","confidence":0.0-1.0}

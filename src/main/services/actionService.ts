@@ -51,6 +51,20 @@ interface ActionServiceStatus {
 // Action Service Class
 // ============================================================================
 
+// ============================================================================
+// Frequency Capping Constants
+// ============================================================================
+
+const MAX_ACTIONS_PER_HOUR = 5;
+const MIN_GAP_SECONDS = 120; // 2 minutes between pills
+
+interface QueuedAction {
+  id: string;
+  title: string;
+  subtitle?: string;
+  actionType: string;
+}
+
 export class ActionService {
   private notchBridge: NotchBridge | null = null;
   private realtimeWs: WebSocket | null = null;
@@ -59,6 +73,12 @@ export class ActionService {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private pendingAckTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private realtimeHeartbeat: ReturnType<typeof setInterval> | null = null;
+
+  // Frequency capping state
+  private recentActionTimestamps: number[] = [];
+  private lastActionShownAt: number = 0;
+  private actionQueue: QueuedAction[] = [];
+  private queueDrainTimer: ReturnType<typeof setInterval> | null = null;
 
   // ============================================================================
   // Lifecycle
@@ -111,6 +131,13 @@ export class ActionService {
     }
     this.pendingAckTimers.clear();
 
+    // Clear queue drain timer
+    if (this.queueDrainTimer) {
+      clearInterval(this.queueDrainTimer);
+      this.queueDrainTimer = null;
+    }
+    this.actionQueue = [];
+
     this.notchBridge = null;
     console.log('[action-service] Stopped');
   }
@@ -130,6 +157,83 @@ export class ActionService {
       pendingSyncCount: unsyncedRow?.count ?? 0,
       realtimeConnected: this.realtimeConnected,
     };
+  }
+
+  // ============================================================================
+  // Frequency Capping
+  // ============================================================================
+
+  /**
+   * Determines whether a new action should be shown immediately.
+   * Returns false if rate limits are exceeded (action gets queued instead).
+   */
+  private shouldShowAction(shouldNotify: boolean): boolean {
+    // If cloud says don't notify, skip entirely
+    if (!shouldNotify) {
+      return false;
+    }
+
+    const now = Date.now();
+
+    // Prune timestamps older than 1 hour
+    this.recentActionTimestamps = this.recentActionTimestamps.filter(
+      (ts) => now - ts < 60 * 60 * 1000
+    );
+
+    // Check hourly rate limit
+    if (this.recentActionTimestamps.length >= MAX_ACTIONS_PER_HOUR) {
+      console.log('[action-service] Hourly rate limit reached, queueing action');
+      return false;
+    }
+
+    // Check minimum gap between pills
+    if (this.lastActionShownAt > 0 && (now - this.lastActionShownAt) < MIN_GAP_SECONDS * 1000) {
+      console.log('[action-service] Too soon since last pill, queueing action');
+      return false;
+    }
+
+    return true;
+  }
+
+  private recordActionShown(): void {
+    const now = Date.now();
+    this.recentActionTimestamps.push(now);
+    this.lastActionShownAt = now;
+  }
+
+  private enqueueAction(action: QueuedAction): void {
+    this.actionQueue.push(action);
+    console.log(`[action-service] Action queued (${this.actionQueue.length} in queue): ${action.id}`);
+    this.ensureQueueDrain();
+  }
+
+  private ensureQueueDrain(): void {
+    if (this.queueDrainTimer) return;
+
+    // Check queue every MIN_GAP_SECONDS to drain pending actions
+    this.queueDrainTimer = setInterval(() => {
+      if (this.actionQueue.length === 0) {
+        if (this.queueDrainTimer) {
+          clearInterval(this.queueDrainTimer);
+          this.queueDrainTimer = null;
+        }
+        return;
+      }
+
+      if (this.shouldShowAction(true)) {
+        const next = this.actionQueue.shift()!;
+        this.recordActionShown();
+        if (this.notchBridge) {
+          this.notchBridge.sendAction({
+            id: next.id,
+            title: next.title,
+            subtitle: next.subtitle,
+            actionType: next.actionType,
+          });
+        }
+        console.log(`[action-service] Drained queued action: ${next.id} (${this.actionQueue.length} remaining)`);
+      }
+    }, MIN_GAP_SECONDS * 1000);
   }
 
   // ============================================================================
@@ -306,14 +410,26 @@ export class ActionService {
       // Clear ack timer since we got a response
       this.clearAckTimer(actionId);
 
-      // If cloud enriched the title, update the notch
+      // Check should_notify from cloud response
+      const shouldNotify = result.should_notify !== false;
+
+      // If cloud enriched the title, update the notch (respecting frequency caps)
       if (result.title && result.title !== localTitle && this.notchBridge) {
-        this.notchBridge.sendAction({
+        const actionToShow: QueuedAction = {
           id: actionId,
           title: result.title,
           subtitle: result.subtitle || undefined,
           actionType,
-        });
+        };
+
+        if (this.shouldShowAction(shouldNotify)) {
+          this.recordActionShown();
+          this.notchBridge.sendAction(actionToShow);
+        } else if (shouldNotify) {
+          // Queue for later display, don't drop
+          this.enqueueAction(actionToShow);
+        }
+        // If shouldNotify=false, we just silently store it — no queue, no display
       }
 
       // If cloud invalidated the action, hide it
