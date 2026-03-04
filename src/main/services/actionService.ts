@@ -749,11 +749,11 @@ export class ActionService {
     const db = this.getDb();
     if (!db) return;
 
-    // Check if this matches a local action
+    // Check if this matches a local action (desktop-originated)
     const localAction = db.prepare('SELECT * FROM local_actions WHERE action_id = ?').get(actionId) as LocalAction | undefined;
 
     if (localAction) {
-      // Mark as synced, update cloud_title if different
+      // Desktop-originated action: mark as synced, update cloud_title if different
       const cloudTitle = record.title || localAction.local_title;
       db.prepare(`UPDATE local_actions SET synced = 1, cloud_title = ?, status = ? WHERE action_id = ?`)
         .run(cloudTitle, record.status || 'pending', actionId);
@@ -772,6 +772,36 @@ export class ActionService {
       }
 
       console.log('[action-service] Realtime INSERT synced for:', actionId);
+    } else if (record.source === 'web_intelligence') {
+      // Web-originated action: create local record and show pill
+      const title = record.title || 'Action suggested';
+      const actionType = record.action_type || 'task_create';
+      const shouldNotify = record.should_notify !== false;
+
+      // Store in local SQLite for tracking
+      db.prepare(`
+        INSERT OR IGNORE INTO local_actions (action_id, event_hash, status, local_title, cloud_title, action_type, confidence, synced, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+      `).run(actionId, record.event_hash || '', record.status || 'pending', title, title, actionType, record.cloud_confidence || 0.9);
+
+      console.log('[action-service] Web-originated action received:', actionId, title);
+
+      // Apply frequency cap and show pill if appropriate
+      if (this.notchBridge && record.status === 'pending') {
+        const actionToShow: QueuedAction = {
+          id: actionId,
+          title,
+          subtitle: record.subtitle || undefined,
+          actionType,
+        };
+
+        if (this.shouldShowAction(shouldNotify)) {
+          this.recordActionShown();
+          this.notchBridge.sendAction(actionToShow);
+        } else if (shouldNotify) {
+          this.enqueueAction(actionToShow);
+        }
+      }
     }
   }
 
