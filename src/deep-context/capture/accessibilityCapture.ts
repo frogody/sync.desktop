@@ -117,9 +117,10 @@ export class AccessibilityCaptureService extends EventEmitter {
         return null;
       }
 
-      // Deduplicate: skip if same text as last capture
-      const textHash = this.hashText(result.visibleText || result.focusedElementText || result.windowTitle);
-      if (textHash === this.lastTextHash) {
+      // Deduplicate: include app+title in hash so window changes are always captured
+      const hashInput = `${result.appName}|${result.windowTitle}|${result.visibleText || result.focusedElementText || ''}`;
+      const textHash = this.hashText(hashInput);
+      if (textHash && textHash === this.lastTextHash) {
         return null;
       }
       this.lastTextHash = textHash;
@@ -136,15 +137,21 @@ export class AccessibilityCaptureService extends EventEmitter {
     } catch (error) {
       this.consecutiveErrors++;
 
-      // Only log every 5th error to avoid log spam
-      if (this.consecutiveErrors % 5 === 1) {
-        console.error('[accessibility] Capture failed:', error);
+      // Log first error and every 5th error after
+      if (this.consecutiveErrors === 1 || this.consecutiveErrors % 5 === 0) {
+        console.error(`[accessibility] Capture failed (${this.consecutiveErrors} consecutive):`, error);
       }
 
-      // If too many consecutive errors, back off
+      // If too many consecutive errors, pause but don't stop permanently
       if (this.consecutiveErrors >= 20) {
-        console.error('[accessibility] Too many errors, stopping capture');
+        console.error('[accessibility] Too many errors, pausing capture for 5 minutes');
         this.stop();
+        // Auto-restart after 5 minutes instead of permanent stop
+        setTimeout(() => {
+          console.log('[accessibility] Restarting capture after error pause');
+          this.consecutiveErrors = 0;
+          this.start();
+        }, 5 * 60 * 1000);
       }
 
       return null;

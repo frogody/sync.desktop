@@ -93,6 +93,24 @@ export class DeepContextEngine extends EventEmitter {
     this.running = true;
     this.pipeline.start();
 
+    // Log pipeline status after a short delay to capture startup results
+    setTimeout(() => {
+      const stats = this.pipeline.getStats();
+      console.log('[deep-context-engine] Pipeline status after start:', {
+        pipelineRunning: stats.isRunning,
+        accessibilityRunning: stats.accessibilityStats.isRunning,
+        accessibilityCaptures: stats.accessibilityStats.captureCount,
+        accessibilityErrors: stats.accessibilityStats.consecutiveErrors,
+        processedCount: stats.processedCount,
+        filteredCount: stats.filteredCount,
+        duplicateCount: stats.duplicateCount,
+        errorCount: stats.errorCount,
+      });
+      if (!stats.accessibilityStats.isRunning) {
+        console.warn('[deep-context-engine] Accessibility capture is NOT running — context_events will be empty. Check permissions.');
+      }
+    }, 5000);
+
     // Schedule periodic cleanup (every 6 hours)
     this.cleanupInterval = setInterval(() => {
       this.cleanup();

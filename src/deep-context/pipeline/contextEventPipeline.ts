@@ -123,10 +123,10 @@ export class ContextEventPipeline extends EventEmitter {
         return;
       }
 
-      // Step 2: Deduplication
-      const contentForHash = capture.visibleText || capture.focusedElementText || capture.windowTitle;
+      // Step 2: Deduplication — include app+title so window changes are always processed
+      const contentForHash = `${capture.appName}|${capture.windowTitle}|${capture.visibleText || capture.focusedElementText || ''}`;
       const contentHash = this.hashContent(contentForHash);
-      if (contentHash === this.lastContentHash) {
+      if (contentHash && contentHash === this.lastContentHash) {
         this.duplicateCount++;
         this.emit('pipeline', {
           type: 'event_duplicate',

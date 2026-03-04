@@ -277,6 +277,56 @@ export class SemanticProcessor extends EventEmitter {
       unprocessedEvents = [];
     }
 
+    // Fallback: if context_events is empty, synthesize from activity_logs
+    // This ensures the semantic pipeline produces output even when the
+    // accessibility capture service is not working (permission issues, etc.)
+    if (unprocessedEvents.length === 0) {
+      try {
+        const { getDatabase } = await import('../../db/database');
+        const db = getDatabase();
+        // Group consecutive same-app entries to avoid processing duplicates
+        const activityRows = db.prepare(`
+          SELECT MIN(id) as id, MIN(timestamp) as timestamp,
+                 app_name, window_title, url,
+                 SUM(duration_seconds) as total_duration,
+                 COUNT(*) as entry_count
+          FROM activity_logs
+          WHERE timestamp >= ? AND timestamp < ?
+          GROUP BY app_name, window_title
+          ORDER BY MIN(timestamp) ASC
+        `).all(lastCycle, now) as any[];
+
+        if (activityRows.length > 0) {
+          console.log(`[semantic-processor] No context_events found, synthesizing ${activityRows.length} grouped events from activity_logs`);
+          for (const row of activityRows) {
+            const syntheticId = `activity_${row.id}`;
+            if (processedEventIds.has(syntheticId)) continue;
+
+            const syntheticEvent: ContextEvent = {
+              id: row.id,
+              timestamp: typeof row.timestamp === 'string' ? new Date(row.timestamp).getTime() : row.timestamp,
+              eventType: 'document_interaction',
+              source: {
+                application: row.app_name || '',
+                windowTitle: row.window_title || '',
+                url: row.url || undefined,
+              },
+              semanticPayload: {
+                summary: `Using ${row.app_name || 'application'}: ${(row.window_title || '').substring(0, 80)}`,
+                entities: [],
+              },
+              confidence: 0.6,
+              privacyLevel: 'sync_allowed',
+              synced: false,
+            };
+            unprocessedEvents.push(syntheticEvent);
+          }
+        }
+      } catch (err) {
+        console.error('[semantic-processor] Fallback activity_logs query failed:', err);
+      }
+    }
+
     if (unprocessedEvents.length === 0) {
       setSyncMetadata('last_semantic_cycle', String(now));
       return;

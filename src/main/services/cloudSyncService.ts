@@ -226,6 +226,17 @@ export class CloudSyncService {
       this.lastSyncTime = new Date();
       console.log('[sync] Sync completed:', result.syncedItems);
 
+      // Update last_activity_sync metadata on successful sync
+      const totalSynced = Object.values(result.syncedItems).reduce((sum, n) => sum + n, 0);
+      if (totalSynced > 0) {
+        try {
+          const { setSyncMetadata } = await import('../db/queries');
+          setSyncMetadata('last_activity_sync', new Date().toISOString());
+        } catch (e) {
+          // Non-critical, just metadata tracking
+        }
+      }
+
       if (this.syncErrors.length > 0) {
         console.error('[sync] Sync errors:', this.syncErrors);
         result.success = false;
