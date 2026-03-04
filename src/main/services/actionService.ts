@@ -413,8 +413,8 @@ export class ActionService {
       // Check should_notify from cloud response
       const shouldNotify = result.should_notify !== false;
 
-      // If cloud enriched the title, update the notch (respecting frequency caps)
-      if (result.title && result.title !== localTitle && this.notchBridge) {
+      // Only show pill if cloud validated the action (status = pending)
+      if (result.status === 'pending' && result.title && this.notchBridge) {
         const actionToShow: QueuedAction = {
           id: actionId,
           title: result.title,
@@ -426,15 +426,13 @@ export class ActionService {
           this.recordActionShown();
           this.notchBridge.sendAction(actionToShow);
         } else if (shouldNotify) {
-          // Queue for later display, don't drop
           this.enqueueAction(actionToShow);
         }
-        // If shouldNotify=false, we just silently store it — no queue, no display
       }
 
-      // If cloud invalidated the action, hide it
-      if (result.status === 'invalidated' && this.notchBridge) {
-        this.notchBridge.hideAction(actionId, result.status_message || 'Already done');
+      // If cloud invalidated — no pill was shown (Swift no longer shows locally), just log
+      if (result.status === 'invalidated') {
+        console.log('[action-service] Cloud invalidated action:', actionId, result.status_message);
         const db2 = this.getDb();
         if (db2) {
           db2.prepare(`UPDATE local_actions SET status = 'invalidated', resolved_at = datetime('now') WHERE action_id = ?`).run(actionId);

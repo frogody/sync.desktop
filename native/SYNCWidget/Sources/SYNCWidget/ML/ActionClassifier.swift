@@ -240,14 +240,30 @@ final class MLXActionClassifier: ActionClassifierProtocol {
         let signalBlock = taskSignals.map { "\n\n<task_signals>\n\($0)\n</task_signals>" } ?? ""
 
         return """
-        Analyze this user activity and determine if there's an actionable task the user should be reminded about.
+        You are a business task detector. Analyze the user's activity and determine if there is a REAL BUSINESS TASK that a working professional would add to their to-do list.
+
+        ACTIONABLE tasks are things like:
+        - Following up with a client or colleague
+        - Reviewing or sending a proposal/invoice/contract
+        - Preparing for a meeting
+        - Responding to an important email
+        - Completing a deadline-driven deliverable
+        - Making a phone call that was mentioned
+
+        NOT actionable (always return actionable:false):
+        - Browsing, reading, or researching
+        - Routine app usage (coding, designing, writing)
+        - System processes (compilation, downloads, updates)
+        - Switching between apps or tabs
+        - Watching videos or reading documentation
+        - Any developer tooling activity (builds, tests, deploys)
 
         <context>
         \(eventInfo)
         </context>\(signalBlock)
 
-        Is this actionable? Respond ONLY with JSON, no other text:
-        {"actionable":true/false,"type":"calendar_event|task_create|email_reply|reminder|none","title":"max 50 char notification text","confidence":0.0-1.0}
+        Respond ONLY with JSON, no other text:
+        {"actionable":true/false,"type":"calendar_event|task_create|email_reply|reminder|none","title":"max 50 char human-readable task description","confidence":0.0-1.0}
         """
     }
 
