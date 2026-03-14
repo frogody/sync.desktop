@@ -3,7 +3,7 @@
  * Ported from app.isyncso.com to match the web app avatar exactly
  *
  * Features:
- * - SVG colored ring segments representing different SYNC agents
+ * - SVG hexagonal ring segments representing different SYNC agents
  * - Canvas-based particle animation inside
  * - Anime.js powered animations for segments and glow
  * - Synchronized with SyncStateContext for mood/level changes
@@ -13,6 +13,63 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import anime from 'animejs';
 import { cn, prefersReducedMotion } from '../lib/utils';
 import { useSyncState } from '../context/SyncStateContext';
+
+// Hexagon geometry helpers (pointy-top orientation)
+const HEX_ANGLES = [270, 330, 30, 90, 150, 210].map(d => (d * Math.PI) / 180);
+
+function hexVertex(cx: number, cy: number, r: number, i: number) {
+  const a = HEX_ANGLES[i % 6];
+  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+}
+
+function hexPointsStr(cx: number, cy: number, r: number) {
+  return Array.from({ length: 6 }, (_, i) => {
+    const v = hexVertex(cx, cy, r, i);
+    return `${v.x},${v.y}`;
+  }).join(' ');
+}
+
+// Map a 0-1 fraction to a point on the hexagon perimeter
+function hexPerimeterPoint(cx: number, cy: number, r: number, frac: number) {
+  const f = ((frac % 1) + 1) % 1;
+  const totalEdges = 6;
+  const edgeProgress = f * totalEdges;
+  const edgeIndex = Math.floor(edgeProgress);
+  const t = edgeProgress - edgeIndex;
+  const v0 = hexVertex(cx, cy, r, edgeIndex);
+  const v1 = hexVertex(cx, cy, r, (edgeIndex + 1) % 6);
+  return {
+    x: v0.x + (v1.x - v0.x) * t,
+    y: v0.y + (v1.y - v0.y) * t,
+  };
+}
+
+// Build SVG path along hex perimeter from frac0 to frac1
+function hexEdgePath(cx: number, cy: number, r: number, frac0: number, frac1: number) {
+  const f0 = ((frac0 % 1) + 1) % 1;
+  const f1 = ((frac1 % 1) + 1) % 1;
+  const totalEdges = 6;
+
+  const points: { x: number; y: number }[] = [];
+  points.push(hexPerimeterPoint(cx, cy, r, f0));
+
+  const startEdge = Math.floor(f0 * totalEdges);
+  const span = f1 > f0 ? f1 - f0 : 1 - f0 + f1;
+  const endFrac = f0 + span;
+  let nextVertexFrac = (startEdge + 1) / totalEdges;
+  if (nextVertexFrac <= f0) nextVertexFrac += 1;
+
+  while (nextVertexFrac < endFrac - 0.0001) {
+    points.push(hexPerimeterPoint(cx, cy, r, nextVertexFrac));
+    nextVertexFrac += 1 / totalEdges;
+  }
+
+  points.push(hexPerimeterPoint(cx, cy, r, f1));
+  return 'M ' + points.map(p => `${p.x} ${p.y}`).join(' L ');
+}
+
+// CSS clip-path for pointy-top hexagon
+const HEX_CLIP = 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)';
 
 // Agent color segments - matches the web app exactly
 const AGENT_SEGMENTS = [
@@ -76,18 +133,6 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
   const segmentR = r - 2;
   const innerR = r * 0.58;
 
-  // Helpers for SVG arc paths
-  const polar = (cx: number, cy: number, radius: number, a: number) => {
-    const ang = (a - 0.25) * Math.PI * 2;
-    return { x: cx + radius * Math.cos(ang), y: cy + radius * Math.sin(ang) };
-  };
-
-  const arcPath = (cx: number, cy: number, radius: number, a0: number, a1: number) => {
-    const p0 = polar(cx, cy, radius, a0);
-    const p1 = polar(cx, cy, radius, a1);
-    const large = a1 - a0 > 0.5 ? 1 : 0;
-    return `M ${p0.x} ${p0.y} A ${radius} ${radius} 0 ${large} 1 ${p1.x} ${p1.y}`;
-  };
 
   // Animate segments based on mood
   useEffect(() => {
@@ -249,16 +294,26 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
 
       ctx.clearRect(0, 0, size, size);
 
-      // Inner dark background - solid black
+      // Inner dark background - hexagonal
       ctx.fillStyle = 'rgba(0,0,0,1)';
       ctx.beginPath();
-      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      for (let i = 0; i < 6; i++) {
+        const v = hexVertex(cx, cy, innerR, i);
+        if (i === 0) ctx.moveTo(v.x, v.y);
+        else ctx.lineTo(v.x, v.y);
+      }
+      ctx.closePath();
       ctx.fill();
 
-      // Clip to inner circle
+      // Clip to inner hexagon
       ctx.save();
       ctx.beginPath();
-      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      for (let i = 0; i < 6; i++) {
+        const v = hexVertex(cx, cy, innerR, i);
+        if (i === 0) ctx.moveTo(v.x, v.y);
+        else ctx.lineTo(v.x, v.y);
+      }
+      ctx.closePath();
       ctx.clip();
 
       // Purple gradient - intensity based on level
@@ -288,9 +343,9 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         a.x += a.vx * speedBoost;
         a.y += a.vy * speedBoost;
 
-        // Keep inside
+        // Keep inside hexagonal boundary (approximate with inscribed circle)
         const rr = Math.sqrt((a.x - cx) ** 2 + (a.y - cy) ** 2);
-        const maxR = innerR * 0.85;
+        const maxR = innerR * 0.75; // inscribed circle of hexagon
         if (rr > maxR) {
           const k = maxR / rr;
           a.x = cx + (a.x - cx) * k;
@@ -350,40 +405,21 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
   return (
     <div
       className={cn('relative', className)}
-      style={{
-        width: size,
-        height: size,
-        // Add glow shadow around the avatar (outside only)
-        filter: `drop-shadow(0 0 8px ${activeAgentColor}90) drop-shadow(0 0 16px ${activeAgentColor}50)`,
-      }}
+      style={{ width: size, height: size }}
     >
-      {/* Solid black circular background */}
-      <div
-        className="absolute rounded-full"
-        style={{
-          top: 4,
-          left: 4,
-          right: 4,
-          bottom: 4,
-          background: '#000000',
-        }}
-      />
-
-      {/* Outer glow halo - outside the ring only */}
+      {/* Outer glow halo — hexagonal */}
       <div
         ref={glowRef}
-        className="absolute rounded-full pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          top: -8,
-          left: -8,
-          right: -8,
-          bottom: -8,
-          background: `radial-gradient(circle, transparent 45%, ${activeAgentColor}30 55%, transparent 70%)`,
-          opacity: 0.6,
+          clipPath: HEX_CLIP,
+          background: `radial-gradient(circle, ${activeAgentColor}40 0%, transparent 70%)`,
+          transform: 'scale(1.2)',
+          opacity: 0.3,
         }}
       />
 
-      {/* SVG for colored ring segments */}
+      {/* SVG for hexagonal ring segments */}
       <svg
         width={size}
         height={size}
@@ -400,21 +436,34 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
           </filter>
         </defs>
 
-        {/* Colored segments - THE outer ring */}
+        {/* Base hexagon ring (visible when no/few segments) */}
+        <polygon
+          points={hexPointsStr(r, r, segmentR)}
+          fill="none"
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth={3}
+          strokeLinejoin="round"
+        />
+
+        {/* Colored segments — drawn along hexagon edges */}
         <g ref={segmentsRef} filter="url(#miniGlow)">
           {AGENT_SEGMENTS.map((segment) => (
             <path
               key={segment.id}
               data-agent={segment.id}
-              d={arcPath(r, r, segmentR, segment.from, segment.to)}
+              d={hexEdgePath(r, r, segmentR, segment.from, segment.to)}
               fill="none"
               stroke={segment.color}
               strokeWidth={3}
               strokeLinecap="round"
+              strokeLinejoin="round"
               opacity={activeAgent === segment.id ? 1 : 0.75}
             />
           ))}
         </g>
+
+        {/* Inner dark hexagon background */}
+        <polygon points={hexPointsStr(r, r, innerR)} fill="rgba(0,0,0,0.6)" />
       </svg>
 
       {/* Canvas for inner particle visualization */}
@@ -424,11 +473,11 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         style={{ width: size, height: size }}
       />
 
-      {/* Success flash overlay */}
+      {/* Success flash overlay — hexagonal */}
       {showSuccess && (
         <div
-          className="absolute inset-0 rounded-full bg-green-500/30 animate-ping"
-          style={{ animationDuration: '0.5s' }}
+          className="absolute inset-0 bg-green-500/30 animate-ping"
+          style={{ clipPath: HEX_CLIP, animationDuration: '0.5s' }}
         />
       )}
     </div>

@@ -6,6 +6,9 @@
   "author": "iSyncSO",
   "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",
