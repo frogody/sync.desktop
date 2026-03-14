@@ -74,8 +74,7 @@
     "mac": {
       "target": [
         "dmg",
-        "zip",
-        "pkg"
+        "zip"
       ],
       "icon": "assets/icons/icon.icns",
       "category": "public.app-category.productivity",
@@ -83,6 +82,7 @@
       "gatekeeperAssess": false,
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
+      "identity": "Gody Duinsbergen (FY5J7KSYHJ)",
       "artifactName": "SYNC.Desktop-${version}-${arch}.${ext}"
     },
     "afterSign": "scripts/notarize.js",
