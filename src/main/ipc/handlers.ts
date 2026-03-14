@@ -4,7 +4,7 @@
  * Handle communication between main and renderer processes.
  */
 
-import { ipcMain, shell, systemPreferences, app } from 'electron';
+import { ipcMain, shell, app } from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipcChannels';
 import { AppSettings } from '../../shared/types';
 import { WEB_APP_URL, AUTH_CALLBACK_PATH } from '../../shared/constants';
@@ -473,22 +473,10 @@ export function setupIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.SYSTEM_CHECK_PERMISSIONS, async () => {
-    const permissions: Record<string, boolean> = {
-      accessibility: true,
-      screenCapture: true,
-    };
-
-    if (process.platform === 'darwin') {
-      // Check accessibility permission (required for active-win)
-      permissions.accessibility =
-        systemPreferences.isTrustedAccessibilityClient(false);
-
-      // Check screen capture permission
-      const screenStatus = systemPreferences.getMediaAccessStatus('screen');
-      permissions.screenCapture = screenStatus === 'granted';
-    }
-
-    return { success: true, data: permissions };
+    // Use the shared checkPermissions which handles the Sequoia+ bug
+    const { checkPermissions } = await import('../services/permissions');
+    const status = await checkPermissions();
+    return { success: true, data: status };
   });
 
   ipcMain.handle(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, async (_event, permission: string) => {

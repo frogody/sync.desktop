@@ -33,7 +33,7 @@ export default function App() {
           if ((window as any).electron.platform === 'darwin') {
             const permResult = await (window as any).electron.checkPermissions();
             const perms = permResult?.data;
-            if (perms && (!perms.accessibility || !perms.screenCapture)) {
+            if (perms && !perms.accessibility) {
               // Missing required permissions — show setup
               setAppState('permissions');
               (window as any).electron.expandWindow('chat');
@@ -62,7 +62,7 @@ export default function App() {
       try {
         const permResult = await (window as any).electron.checkPermissions();
         const perms = permResult?.data;
-        if (perms && (!perms.accessibility || !perms.screenCapture)) {
+        if (perms && !perms.accessibility) {
           setAppState('permissions');
           return;
         }

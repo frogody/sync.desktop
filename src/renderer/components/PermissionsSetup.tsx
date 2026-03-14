@@ -33,8 +33,8 @@ export default function PermissionsSetup({ onComplete }: Props) {
     {
       id: 'screenCapture',
       label: 'Screen Recording',
-      description: 'Reads window titles so SYNC knows what you\'re working on. Required for tracking.',
-      required: true,
+      description: 'Enables deeper context analysis. Optional — core tracking works without it.',
+      required: false,
       granted: false,
       settingsUrl: 'screenCapture',
     },

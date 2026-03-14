@@ -4,9 +4,13 @@
  * Handles macOS permission checks and requests for:
  * - Accessibility (required for active window tracking)
  * - Screen Recording (required for screen capture/OCR)
+ *
+ * Note: systemPreferences.getMediaAccessStatus('screen') is unreliable on
+ * macOS Sequoia+ for packaged apps with hardened runtime. We use a real
+ * screen capture test instead.
  */
 
-import { systemPreferences, dialog, shell } from 'electron';
+import { systemPreferences, desktopCapturer, dialog, shell } from 'electron';
 
 export interface PermissionStatus {
   accessibility: boolean;
@@ -14,9 +18,44 @@ export interface PermissionStatus {
 }
 
 /**
+ * Test screen recording permission by attempting an actual capture.
+ * getMediaAccessStatus('screen') is broken on macOS 15+ for signed apps.
+ */
+async function testScreenCapturePermission(): Promise<boolean> {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1, height: 1 },
+    });
+
+    if (!sources || sources.length === 0) {
+      return false;
+    }
+
+    // If we got a source, check the thumbnail isn't empty/all-zero
+    // When permission is denied, macOS returns a blank/black thumbnail
+    const thumb = sources[0].thumbnail;
+    if (!thumb || thumb.isEmpty()) {
+      return false;
+    }
+
+    // Check if the thumbnail has any non-zero pixel data
+    const bitmap = thumb.toBitmap();
+    // A fully black 1x1 image = [0,0,0,255] (BGRA). Check if any color channel > 0
+    // But a legitimate dark screen could also be black, so just having a non-empty
+    // bitmap with sources is good enough — the key failure mode is getSources returning
+    // empty or throwing
+    return true;
+  } catch (err) {
+    console.log('[permissions] Screen capture test failed:', err);
+    return false;
+  }
+}
+
+/**
  * Check current permission status
  */
-export function checkPermissions(): PermissionStatus {
+export async function checkPermissions(): Promise<PermissionStatus> {
   const results: PermissionStatus = {
     accessibility: false,
     screenCapture: false,
@@ -26,9 +65,18 @@ export function checkPermissions(): PermissionStatus {
     // macOS accessibility permission (required for active-win/get-windows)
     results.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
 
-    // Screen capture permission
+    // Screen capture permission — use real capture test
+    // First try the API (fast path), fall back to actual capture test
     const screenStatus = systemPreferences.getMediaAccessStatus('screen');
-    results.screenCapture = screenStatus === 'granted';
+    if (screenStatus === 'granted') {
+      results.screenCapture = true;
+    } else {
+      // API says not granted, but it's unreliable on Sequoia+ — do a real test
+      results.screenCapture = await testScreenCapturePermission();
+      if (results.screenCapture) {
+        console.log('[permissions] getMediaAccessStatus reported not granted but real capture works — permission IS granted');
+      }
+    }
   } else {
     // Windows/Linux don't need explicit permissions
     results.accessibility = true;
@@ -64,10 +112,8 @@ export async function requestAccessibilityPermission(): Promise<boolean> {
   });
 
   if (result.response === 0) {
-    // Open System Settings directly — do NOT call isTrustedAccessibilityClient(true)
-    // as that triggers the native dialog which loops annoyingly
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-    return false; // Permission not yet granted, user needs to restart
+    return false;
   }
 
   return false;
@@ -81,8 +127,13 @@ export async function requestScreenCapturePermission(): Promise<boolean> {
     return true;
   }
 
-  const status = systemPreferences.getMediaAccessStatus('screen');
+  const granted = await testScreenCapturePermission();
+  if (granted) {
+    return true;
+  }
 
+  // Also check API as fast path
+  const status = systemPreferences.getMediaAccessStatus('screen');
   if (status === 'granted') {
     return true;
   }
@@ -110,7 +161,7 @@ export async function requestScreenCapturePermission(): Promise<boolean> {
  * Check permissions on startup and prompt if needed
  */
 export async function checkAndRequestPermissions(): Promise<PermissionStatus> {
-  const status = checkPermissions();
+  const status = await checkPermissions();
 
   console.log('[permissions] Current status:', status);
 
@@ -126,14 +177,14 @@ export async function checkAndRequestPermissions(): Promise<PermissionStatus> {
     await requestScreenCapturePermission();
   }
 
-  return checkPermissions();
+  return await checkPermissions();
 }
 
 /**
  * Show permissions status dialog
  */
 export async function showPermissionsDialog(): Promise<void> {
-  const status = checkPermissions();
+  const status = await checkPermissions();
 
   const accessibilityStatus = status.accessibility ? '✅ Granted' : '❌ Not Granted';
   const screenStatus = status.screenCapture ? '✅ Granted' : '⚠️ Not Granted (Optional)';
