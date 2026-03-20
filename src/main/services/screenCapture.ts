@@ -31,25 +31,21 @@ export interface CaptureEvent {
   reason?: string;
 }
 
-// Additional sensitive patterns for deep context
+// Additional sensitive patterns for deep context (extends SENSITIVE_APP_PATTERNS,
+// which already includes: password, 1password, lastpass, keychain, bitwarden,
+// dashlane, banking, medical, health)
 const DEEP_CONTEXT_EXCLUDED_APPS = [
   ...SENSITIVE_APP_PATTERNS,
-  'banking',
+  // Financial apps (beyond base patterns)
   'chase',
   'wells fargo',
   'bank of america',
   'credit card',
   'venmo',
   'paypal',
-  'password',
-  '1password',
-  'lastpass',
-  'bitwarden',
-  'keychain',
-  'private',
+  // Privacy-sensitive browsing
   'incognito',
-  'medical',
-  'health',
+  // Healthcare (beyond base patterns)
   'doctor',
   'pharmacy',
   'hipaa',
@@ -276,7 +272,8 @@ export class ScreenCaptureService extends EventEmitter {
     windowId: number | undefined;
   } | null> {
     try {
-      // Use AppleScript to get active window info
+      // SEC-017: This AppleScript is fully static (no user input interpolated).
+      // The shell quoting via replace is safe for this static string.
       const script = `
         tell application "System Events"
           set frontApp to first application process whose frontmost is true

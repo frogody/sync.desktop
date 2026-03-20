@@ -82,7 +82,7 @@ export default function PermissionsSetup({ onComplete }: Props) {
     onComplete();
   };
 
-  const grantedCount = permissions.filter((p) => p.granted).length;
+  const requiredGrantedCount = permissions.filter((p) => p.required && p.granted).length;
   const totalRequired = permissions.filter((p) => p.required).length;
 
   return (
@@ -99,14 +99,21 @@ export default function PermissionsSetup({ onComplete }: Props) {
       {/* Progress */}
       <div className="px-6 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={requiredGrantedCount}
+            aria-valuemin={0}
+            aria-valuemax={totalRequired}
+            aria-label={`${requiredGrantedCount} of ${totalRequired} required permissions granted`}
+          >
             <div
               className="h-full bg-cyan-500 rounded-full transition-all duration-500"
-              style={{ width: `${(grantedCount / totalRequired) * 100}%` }}
+              style={{ width: `${totalRequired > 0 ? (requiredGrantedCount / totalRequired) * 100 : 0}%` }}
             />
           </div>
           <span className="text-xs text-zinc-500">
-            {grantedCount}/{totalRequired}
+            {requiredGrantedCount}/{totalRequired}
           </span>
         </div>
       </div>
@@ -127,16 +134,17 @@ export default function PermissionsSetup({ onComplete }: Props) {
                 <div className="flex items-center gap-2 mb-1">
                   {/* Status icon */}
                   {perm.granted ? (
-                    <svg className="w-5 h-5 text-cyan-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-5 h-5 text-cyan-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                       <circle cx="12" cy="12" r="10" />
                       <path strokeLinecap="round" d="M12 8v4M12 16h.01" />
                     </svg>
                   )}
                   <span className="font-medium text-sm">{perm.label}</span>
+                  <span className="sr-only">{perm.granted ? '(Granted)' : '(Not granted)'}</span>
                   {perm.required && !perm.granted && (
                     <span className="text-[10px] uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
                       Required
@@ -150,7 +158,8 @@ export default function PermissionsSetup({ onComplete }: Props) {
               {!perm.granted && (
                 <button
                   onClick={() => handleOpenSettings(perm.id)}
-                  className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  aria-label={`Open System Settings for ${perm.label}`}
+                  className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                 >
                   Open Settings
                 </button>

@@ -106,7 +106,7 @@ export async function requestAccessibilityPermission(): Promise<boolean> {
     title: 'Accessibility Permission Required',
     message: 'SYNC Desktop needs Accessibility permission to track your active windows.',
     detail: 'This allows SYNC to understand what apps you\'re using and provide contextual assistance.\n\nClick "Open Settings" to grant permission, then restart SYNC Desktop.',
-    buttons: ['Open Settings', 'Later'],
+    buttons: ['Open System Settings', 'Later'],
     defaultId: 0,
     cancelId: 1,
   });
@@ -144,7 +144,7 @@ export async function requestScreenCapturePermission(): Promise<boolean> {
     title: 'Screen Recording Permission Required',
     message: 'SYNC Desktop needs Screen Recording permission to read window titles and track your activity.',
     detail: 'Without this permission, SYNC cannot see what you\'re working on.\n\nClick "Open Settings" to grant permission, then restart SYNC Desktop.',
-    buttons: ['Open Settings', 'Later'],
+    buttons: ['Open System Settings', 'Later'],
     defaultId: 0,
     cancelId: 1,
   });
@@ -186,15 +186,15 @@ export async function checkAndRequestPermissions(): Promise<PermissionStatus> {
 export async function showPermissionsDialog(): Promise<void> {
   const status = await checkPermissions();
 
-  const accessibilityStatus = status.accessibility ? '✅ Granted' : '❌ Not Granted';
-  const screenStatus = status.screenCapture ? '✅ Granted' : '⚠️ Not Granted (Optional)';
+  const accessibilityStatus = status.accessibility ? 'Granted' : 'Not Granted';
+  const screenStatus = status.screenCapture ? 'Granted' : 'Not Granted (Optional)';
 
   const result = await dialog.showMessageBox({
     type: 'info',
     title: 'SYNC Desktop Permissions',
     message: 'Permission Status',
     detail: `Accessibility: ${accessibilityStatus}\nScreen Recording: ${screenStatus}\n\nAccessibility is required for activity tracking.\nScreen Recording is optional for advanced features.`,
-    buttons: ['Open System Preferences', 'Close'],
+    buttons: ['Open System Settings', 'Close'],
     defaultId: 1,
   });
 

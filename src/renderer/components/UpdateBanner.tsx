@@ -83,7 +83,7 @@ export default function UpdateBanner() {
 
   return (
     <div className="absolute top-0 left-0 right-0 z-50 px-3 pt-2">
-      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-sm px-3 py-2">
+      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-sm px-3 py-2" role="alert">
         {/* Update available */}
         {state === 'available' && (
           <div className="flex items-center justify-between gap-2">
@@ -92,19 +92,21 @@ export default function UpdateBanner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               <span className="text-xs text-white truncate">
-                v{version} available
+                SYNC Desktop v{version} — update available
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={handleDownload}
-                className="text-[11px] px-2.5 py-1 rounded-md bg-cyan-500 text-white font-medium hover:bg-cyan-400 transition-colors"
+                aria-label={`Download update v${version}`}
+                className="text-[11px] px-2.5 py-1 rounded-md bg-cyan-500 text-white font-medium hover:bg-cyan-400 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:outline-none"
               >
                 Update
               </button>
               <button
                 onClick={() => setDismissed(true)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5"
+                aria-label="Dismiss update notification"
+                className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -121,7 +123,14 @@ export default function UpdateBanner() {
               <span className="text-xs text-white">Downloading v{version}...</span>
               <span className="text-[11px] text-cyan-400">{Math.round(progress)}%</span>
             </div>
-            <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+            <div
+              className="h-1 bg-zinc-800 rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={Math.round(progress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Download progress: ${Math.round(progress)}%`}
+            >
               <div
                 className="h-full bg-cyan-500 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
@@ -138,12 +147,13 @@ export default function UpdateBanner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-xs text-white truncate">
-                v{version} ready
+                v{version} ready to install
               </span>
             </div>
             <button
               onClick={handleInstall}
-              className="text-[11px] px-2.5 py-1 rounded-md bg-green-500 text-white font-medium hover:bg-green-400 transition-colors flex-shrink-0"
+              aria-label={`Install update v${version} and restart`}
+              className="text-[11px] px-2.5 py-1 rounded-md bg-green-500 text-white font-medium hover:bg-green-400 transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:outline-none"
             >
               Restart & Update
             </button>

@@ -11,10 +11,19 @@
  */
 
 import { execSync } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { OCRResult } from '../../shared/types';
+
+/**
+ * Sanitize a string for safe interpolation into AppleScript.
+ * Escapes backslashes and double quotes to prevent injection.
+ */
+function sanitizeForAppleScript(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
 
 // ============================================================================
 // OCR Service Class
@@ -33,9 +42,11 @@ export class OCRService {
   // Setup
   // ============================================================================
 
-  private setupSwiftScript(): void {
-    // Create Swift script for Vision framework OCR
-    const swiftCode = `
+  /** SHA-256 hash of the known-good Swift OCR script content */
+  private swiftScriptHash: string = '';
+
+  private getSwiftScriptContent(): string {
+    return `
 import Foundation
 import Vision
 import AppKit
@@ -109,10 +120,16 @@ do {
 // Wait for completion
 RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
 `;
+  }
+
+  private setupSwiftScript(): void {
+    // SEC-016: Write Swift script with owner-only permissions and track hash to detect tampering
+    const swiftCode = this.getSwiftScriptContent();
+    this.swiftScriptHash = crypto.createHash('sha256').update(swiftCode).digest('hex');
 
     try {
-      // Write Swift script
-      fs.writeFileSync(this.swiftScriptPath, swiftCode);
+      // Write Swift script with restrictive permissions (owner read/write only)
+      fs.writeFileSync(this.swiftScriptPath, swiftCode, { mode: 0o600 });
 
       // Test if Swift is available
       execSync('which swift', { encoding: 'utf-8' });
@@ -164,8 +181,21 @@ RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
   private async processWithVision(imagePath: string): Promise<OCRResult> {
     return new Promise((resolve, reject) => {
       try {
+        // SEC-016: Verify script integrity before execution to prevent TOCTOU attacks
+        const currentContent = fs.readFileSync(this.swiftScriptPath, 'utf-8');
+        const currentHash = crypto.createHash('sha256').update(currentContent).digest('hex');
+        if (currentHash !== this.swiftScriptHash) {
+          // Script was tampered with — rewrite it
+          console.warn('[ocr] Swift script integrity check failed — rewriting script');
+          const swiftCode = this.getSwiftScriptContent();
+          fs.writeFileSync(this.swiftScriptPath, swiftCode, { mode: 0o600 });
+        }
+
+        // Sanitize imagePath for shell interpolation
+        const safeImagePath = imagePath.replace(/"/g, '\\"');
+
         // Run Swift script
-        const output = execSync(`swift "${this.swiftScriptPath}" "${imagePath}"`, {
+        const output = execSync(`swift "${this.swiftScriptPath}" "${safeImagePath}"`, {
           encoding: 'utf-8',
           timeout: 30000,
           maxBuffer: 10 * 1024 * 1024, // 10MB
@@ -222,12 +252,14 @@ RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
       try {
         // Use macOS built-in text recognition via AppleScript
         // This leverages the same Vision framework but through a simpler interface
+        // SEC-018: Sanitize imagePath to prevent AppleScript injection
+        const safeImagePath = sanitizeForAppleScript(imagePath);
         const script = `
           use framework "Vision"
           use framework "AppKit"
           use scripting additions
 
-          set imagePath to "${imagePath}"
+          set imagePath to "${safeImagePath}"
           set theImage to current application's NSImage's alloc()'s initWithContentsOfFile:imagePath
 
           if theImage is missing value then

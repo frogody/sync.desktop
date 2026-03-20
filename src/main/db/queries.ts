@@ -475,10 +475,11 @@ export function cleanupOldData(retentionDays: number = 30): void {
   `).run(cutoff);
 
   // Delete old hourly summaries that have been synced
+  // hour_start is stored as epoch milliseconds (INTEGER), so compare with epoch-ms cutoff
   db.prepare(`
     DELETE FROM hourly_summaries
-    WHERE datetime(hour_start) < datetime('now', '-' || ? || ' days') AND synced = 1
-  `).run(retentionDays);
+    WHERE hour_start < ? AND synced = 1
+  `).run(cutoff);
 
   console.log('[db] Cleaned up data older than', retentionDays, 'days');
 }
@@ -606,18 +607,19 @@ export function upsertEntityRelationship(rel: Omit<EntityRelationship, 'id'>): v
     INSERT INTO entity_relationships (source_entity_id, target_entity_id, relationship_type,
       strength, evidence_count, last_evidence, synced, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT DO NOTHING
+    ON CONFLICT(source_entity_id, target_entity_id, relationship_type)
+    DO UPDATE SET
+      strength = excluded.strength,
+      evidence_count = evidence_count + 1,
+      last_evidence = excluded.last_evidence,
+      updated_at = ?,
+      synced = 0
   `).run(
     rel.sourceEntityId, rel.targetEntityId, rel.relationshipType,
     rel.strength, rel.evidenceCount, rel.lastEvidence,
-    rel.synced ? 1 : 0, rel.createdAt, rel.updatedAt
+    rel.synced ? 1 : 0, rel.createdAt, rel.updatedAt,
+    Date.now()
   );
-  // Update if already exists
-  db.prepare(`
-    UPDATE entity_relationships
-    SET strength = ?, evidence_count = evidence_count + 1, last_evidence = ?, updated_at = ?, synced = 0
-    WHERE source_entity_id = ? AND target_entity_id = ? AND relationship_type = ?
-  `).run(rel.strength, rel.lastEvidence, Date.now(), rel.sourceEntityId, rel.targetEntityId, rel.relationshipType);
 }
 
 export function getEntityRelationships(entityId: string): EntityRelationship[] {

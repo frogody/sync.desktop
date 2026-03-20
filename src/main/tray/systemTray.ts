@@ -31,16 +31,20 @@ let tray: Tray | null = null;
 // ============================================================================
 
 export function createSystemTray(): Tray {
-  // Create tray icon
-  // For now, use a placeholder - we'll add proper icons later
-  const iconPath = path.join(__dirname, '../../assets/tray/trayTemplate.png');
+  // Create tray icon — resolve path for both dev and production (packaged) builds
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'tray', 'trayTemplate.png')
+    : path.join(__dirname, '../../assets/tray/trayTemplate.png');
 
-  // Create a simple icon if the file doesn't exist
   let icon: Electron.NativeImage;
   try {
     icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+      console.warn('[tray] Tray icon loaded but is empty:', iconPath);
+      icon = nativeImage.createEmpty();
+    }
   } catch {
-    // Create a simple 16x16 icon as fallback
+    console.warn('[tray] Could not load tray icon from:', iconPath);
     icon = nativeImage.createEmpty();
   }
 
@@ -105,7 +109,7 @@ export function updateTrayMenu(): void {
       },
     },
     {
-      label: 'Start Voice',
+      label: 'Start Voice Mode',
       accelerator: 'CommandOrControl+Shift+V',
       click: () => {
         const widget = getFloatingWidget();
@@ -143,10 +147,26 @@ export function updateTrayMenu(): void {
           const result = await syncService.forceSync();
           console.log('[tray] Sync result:', result);
           if (!result.success) {
+            // Translate raw errors to user-friendly messages
+            const rawError = result.error || '';
+            let userMessage: string;
+            if (rawError.includes('ENOTFOUND') || rawError.includes('network') || rawError.includes('fetch')) {
+              userMessage = 'Could not reach the server. Please check your internet connection and try again.';
+            } else if (rawError.includes('401') || rawError.includes('403') || rawError.includes('Unauthorized')) {
+              userMessage = 'Your session has expired. Please sign out and sign back in, then try syncing again.';
+            } else if (rawError.includes('429')) {
+              userMessage = 'Too many sync requests. Please wait a few minutes and try again.';
+            } else if (rawError.includes('500') || rawError.includes('502') || rawError.includes('503')) {
+              userMessage = 'The SYNC server is temporarily unavailable. Please try again in a few minutes.';
+            } else if (rawError) {
+              userMessage = `Cloud sync could not complete: ${rawError}`;
+            } else {
+              userMessage = 'Cloud sync could not complete. Please check your connection and try again.';
+            }
             dialog.showMessageBox({
               type: 'warning',
-              title: 'Sync Failed',
-              message: result.error || 'Cloud sync failed',
+              title: 'SYNC Cloud Sync Failed',
+              message: userMessage,
               buttons: ['OK'],
             });
           }
@@ -216,7 +236,7 @@ export function updateTrayMenu(): void {
     {
       label: 'Settings',
       click: () => {
-        shell.openExternal(`${WEB_APP_URL}/settings`);
+        shell.openExternal(`${WEB_APP_URL}/Integrations`);
       },
     },
     { type: 'separator' },
@@ -263,12 +283,10 @@ export function updateTrayMenu(): void {
 export function setTrayIcon(status: 'normal' | 'syncing' | 'error'): void {
   if (!tray) return;
 
-  // TODO: Implement different icons for different states
-  // For now, just update the tooltip
   const tooltips = {
-    normal: 'SYNC Desktop',
-    syncing: 'SYNC Desktop - Syncing...',
-    error: 'SYNC Desktop - Error',
+    normal: 'SYNC Desktop — Running',
+    syncing: 'SYNC Desktop — Syncing your data...',
+    error: 'SYNC Desktop — Sync issue, check your connection',
   };
 
   tray.setToolTip(tooltips[status]);

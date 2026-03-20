@@ -3,7 +3,7 @@
 // ============================================================================
 
 export const APP_NAME = 'SYNC Desktop';
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '2.2.0';
 export const APP_PROTOCOL = 'isyncso';
 
 // ============================================================================
@@ -51,6 +51,43 @@ export const DAILY_JOURNAL_RETENTION_DAYS = 90;
 
 export const DEFAULT_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 export const SYNC_BATCH_SIZE = 100;
+
+// ============================================================================
+// Service Timing Constants (INF-011)
+// ============================================================================
+
+/** Auto-updater: delay before first check after startup */
+export const UPDATER_INITIAL_DELAY_MS = 10_000; // 10 seconds
+/** Auto-updater: interval between recurring checks */
+export const UPDATER_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/** Cross-reference interval for commitment follow-ups */
+export const CROSS_REFERENCE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Semantic batch processing delay */
+export const SEMANTIC_BATCH_DELAY_MS = 2_000; // 2 seconds
+/** Semantic batch max size */
+export const SEMANTIC_MAX_BATCH_SIZE = 3;
+
+/** Semantic processing cycle interval */
+export const SEMANTIC_CYCLE_INTERVAL_MS = 60 * 1000; // 60 seconds
+/** Initial delay before first semantic cycle */
+export const SEMANTIC_INITIAL_DELAY_MS = 15_000; // 15 seconds
+
+/** Signature computation interval */
+export const SIGNATURE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+/** Initial delay before first signature computation */
+export const SIGNATURE_INITIAL_DELAY_MS = 60_000; // 60 seconds
+
+/** Initial delay before first cloud sync */
+export const SYNC_INITIAL_DELAY_MS = 30_000; // 30 seconds
+
+// ============================================================================
+// Together.ai API Configuration (INF-006)
+// ============================================================================
+
+export const TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions';
+export const TOGETHER_MODEL = 'moonshotai/Kimi-K2-Instruct';
 
 // ============================================================================
 // Click Detection

@@ -76,7 +76,7 @@ function SyncRing({ size = 80 }: { size?: number }) {
   const r = size / 2 - 4;
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <defs>
         <filter id="ringGlow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="1.5" result="b" />
@@ -124,25 +124,25 @@ function FeatureIcon({ type }: { type: string }) {
   switch (type) {
     case 'activity':
       return (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
       );
     case 'shield':
       return (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       );
     case 'zap':
       return (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
         </svg>
       );
     case 'sync':
       return (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polyline points="23 4 23 10 17 10" />
           <polyline points="1 20 1 14 7 14" />
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -168,11 +168,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     try {
       const result = await window.electron.login();
       if (!result.success) {
-        setError(result.error || 'Failed to open login page');
+        setError(result.error || 'Could not open the login page. Please check your default browser and try again.');
         setIsLoading(false);
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('Something went wrong. Please check your internet connection and try again.');
       setIsLoading(false);
     }
   };
@@ -183,7 +183,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (data.success) {
         onLoginSuccess();
       } else {
-        setError('Authentication failed. Please try again.');
+        setError('Sign-in could not be completed. Please try again, or check your internet connection.');
       }
     });
 
@@ -193,7 +193,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   return (
     <div className="h-full w-full flex flex-col items-center justify-center bg-black relative overflow-hidden">
       {/* Background gradient orbs */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
         <div className="absolute top-[15%] left-[10%] w-48 h-48 bg-cyan-500/8 rounded-full blur-3xl" />
         <div className="absolute bottom-[20%] right-[10%] w-56 h-56 bg-blue-500/8 rounded-full blur-3xl" />
         <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
@@ -219,8 +219,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
 
           <h1 className="text-xl font-semibold text-white mb-1">SYNC Desktop</h1>
-          <p className="text-white/40 text-xs leading-relaxed">
-            Your AI companion that understands<br />what you're working on
+          <p className="text-white/60 text-xs leading-relaxed">
+            Your AI assistant that understands<br />what you're working on
           </p>
         </div>
 
@@ -228,7 +228,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         <button
           onClick={handleLogin}
           disabled={isLoading}
-          className="w-full py-2.5 px-5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-medium rounded-xl hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20"
+          className="w-full py-2.5 px-5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-medium rounded-xl hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none"
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -264,15 +264,17 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </button>
 
         {/* Error */}
-        {error && (
-          <p className="mt-3 text-red-400 text-xs text-center">{error}</p>
-        )}
+        <div aria-live="assertive" aria-atomic="true">
+          {error && (
+            <p className="mt-3 text-red-400 text-xs text-center" role="alert">{error}</p>
+          )}
+        </div>
 
         {/* Features */}
         <div className="mt-6 w-full p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
           <div className="space-y-2">
             {FEATURES.map((f) => (
-              <div key={f.label} className="flex items-center gap-2.5 text-white/40">
+              <div key={f.label} className="flex items-center gap-2.5 text-white/60">
                 <div className="text-cyan-400/70">
                   <FeatureIcon type={f.icon} />
                 </div>
@@ -283,7 +285,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </div>
 
         {/* Footer */}
-        <p className="mt-4 text-white/20 text-[10px] text-center">
+        <p className="mt-4 text-white/50 text-[10px] text-center">
           Secure authentication via app.isyncso.com
         </p>
       </div>

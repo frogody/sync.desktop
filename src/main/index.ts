@@ -36,6 +36,7 @@ import {
   getSettings,
   getAccessToken,
   getAuthState,
+  isAuthStateExpired,
   getUser,
   setAccessToken,
   setRefreshToken,
@@ -160,7 +161,8 @@ async function fetchUserInfo(accessToken: string) {
 }
 
 async function handleDeepLink(url: string) {
-  console.log('[main] Deep link received:', url);
+  // SEC-010: Don't log the full URL (it contains tokens)
+  console.log('[main] Deep link received:', url.replace(/token=[^&]+/g, 'token=***').replace(/refresh_token=[^&]+/g, 'refresh_token=***'));
 
   try {
     const parsed = new URL(url);
@@ -171,6 +173,27 @@ async function handleDeepLink(url: string) {
       const refreshTokenParam = parsed.searchParams.get('refresh_token');
       const state = parsed.searchParams.get('state');
 
+      // LINK-007: Reject if token is missing or empty
+      if (!token || token.trim() === '') {
+        console.error('[main] Deep link auth rejected: missing or empty token');
+        const widget = getFloatingWidget();
+        if (widget) {
+          widget.webContents.send('auth:callback', { success: false, error: 'Missing token' });
+        }
+        return;
+      }
+
+      // SEC-007: Check auth state timeout
+      if (isAuthStateExpired()) {
+        console.error('[main] Deep link auth rejected: auth state expired (>5 min)');
+        setAuthState(null); // Clear expired state
+        const widget = getFloatingWidget();
+        if (widget) {
+          widget.webContents.send('auth:callback', { success: false, error: 'Auth state expired' });
+        }
+        return;
+      }
+
       // Verify state matches what we stored
       const storedState = getAuthState();
       if (state && state === storedState) {
@@ -180,17 +203,16 @@ async function handleDeepLink(url: string) {
           setRefreshToken(refreshTokenParam);
           console.log('[main] Refresh token saved');
         }
+        // SEC-007: Clear authState after use (one-time use)
         setAuthState(null);
 
         // Fetch user info
-        if (token) {
-          const userInfo = await fetchUserInfo(token);
-          if (userInfo) {
-            setUser(userInfo);
-            console.log('[main] User info saved:', userInfo.email);
-          } else {
-            console.error('[main] Failed to fetch user info after auth - user object not saved');
-          }
+        const userInfo = await fetchUserInfo(token);
+        if (userInfo) {
+          setUser(userInfo);
+          console.log('[main] User info saved:', userInfo.email);
+        } else {
+          console.error('[main] Failed to fetch user info after auth - user object not saved');
         }
 
         // Notify renderer of successful auth
@@ -223,13 +245,16 @@ async function handleDeepLink(url: string) {
           });
         }
       } else {
-        console.error('[main] Auth state mismatch - stored:', storedState, 'received:', state);
+        console.error('[main] Auth state mismatch - stored:', storedState ? '(present)' : '(none)', 'received:', state ? '(present)' : '(none)');
         // Notify renderer of auth failure
         const widget = getFloatingWidget();
         if (widget) {
           widget.webContents.send('auth:callback', { success: false, error: 'State mismatch' });
         }
       }
+    } else {
+      // LINK-007: Log and reject unknown deep link hostnames
+      console.warn('[main] Unknown deep link hostname rejected:', parsed.hostname);
     }
   } catch (error) {
     console.error('[main] Failed to parse deep link:', error);

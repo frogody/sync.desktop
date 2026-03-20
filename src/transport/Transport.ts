@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 import { SQLiteQueue } from './sqliteQueue';
 import { getApiKey } from '../pairing/pairing';
+import { APP_VERSION } from '../shared/constants';
 
 /**
  * Configuration options for the Transport layer
@@ -131,7 +132,7 @@ export class Transport {
       maxBatchBytes: 512 * 1024,
       maxRetries: 6,
       initialBackoffMs: 1000,
-      clientVersion: '1.0.0',
+      clientVersion: APP_VERSION,
       ...opts,
     };
     this.queue = new SQLiteQueue(opts.queueDbPath);

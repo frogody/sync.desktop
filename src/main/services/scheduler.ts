@@ -14,6 +14,15 @@ import { DeepContextManager } from './deepContextManager';
 import { DeepContextEngine } from '../../deep-context';
 import { cleanupOldData } from '../db/queries';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import { getSettings } from '../store';
+import {
+  SEMANTIC_CYCLE_INTERVAL_MS,
+  SEMANTIC_INITIAL_DELAY_MS,
+  SIGNATURE_INTERVAL_MS,
+  SIGNATURE_INITIAL_DELAY_MS,
+  SYNC_INITIAL_DELAY_MS,
+} from '../../shared/constants';
+import { registerHealthProvider } from './healthCheck';
 
 // ============================================================================
 // Types
@@ -57,6 +66,20 @@ export class Scheduler {
     this.journalService = journalService;
     this.deepContextManager = deepContextManager || null;
     this.deepContextEngine = deepContextEngine || null;
+
+    // Register health provider
+    registerHealthProvider('scheduler', () => {
+      const taskStatuses = this.getStatus();
+      const anyRunning = Object.values(taskStatuses).some(t => t.isRunning);
+      const lastRuns = Object.values(taskStatuses)
+        .map(t => t.lastRun?.getTime() ?? 0)
+        .filter(t => t > 0);
+      return {
+        name: 'scheduler',
+        status: this.isRunning ? 'running' : 'stopped',
+        lastActivity: lastRuns.length > 0 ? Math.max(...lastRuns) : null,
+      };
+    });
   }
 
   // ============================================================================
@@ -222,8 +245,9 @@ export class Scheduler {
   }
 
   private scheduleSync(): void {
-    // Run sync every 5 minutes
-    const syncIntervalMs = (DEFAULT_SETTINGS.syncIntervalMinutes || 5) * 60 * 1000;
+    // Read sync interval from user settings, falling back to defaults
+    const settings = getSettings();
+    const syncIntervalMs = (settings.syncIntervalMinutes || DEFAULT_SETTINGS.syncIntervalMinutes || 5) * 60 * 1000;
 
     const interval = setInterval(() => {
       this.runSync();
@@ -236,16 +260,16 @@ export class Scheduler {
       isRunning: false,
     });
 
-    // Also run initial sync after 30 seconds
+    // Also run initial sync after a short delay
     setTimeout(() => {
       this.runSync();
-    }, 30000);
+    }, SYNC_INITIAL_DELAY_MS);
   }
 
   private scheduleSemanticCycle(): void {
     const interval = setInterval(() => {
       this.runSemanticCycle();
-    }, 60 * 1000); // Every 60 seconds
+    }, SEMANTIC_CYCLE_INTERVAL_MS);
 
     this.tasks.set('semantic-cycle', {
       name: 'semantic-cycle',
@@ -254,17 +278,16 @@ export class Scheduler {
       isRunning: false,
     });
 
-    // Run initial cycle after 15 seconds (let services initialize)
+    // Run initial cycle after a short delay (let services initialize)
     setTimeout(() => {
       this.runSemanticCycle();
-    }, 15000);
+    }, SEMANTIC_INITIAL_DELAY_MS);
   }
 
   private scheduleSignatureComputation(): void {
-    // Run every 6 hours
     const interval = setInterval(() => {
       this.runSignatureComputation();
-    }, 6 * 60 * 60 * 1000);
+    }, SIGNATURE_INTERVAL_MS);
 
     this.tasks.set('signature-computation', {
       name: 'signature-computation',
@@ -273,10 +296,10 @@ export class Scheduler {
       isRunning: false,
     });
 
-    // Initial run after 60 seconds (let semantic data accumulate first)
+    // Initial run after a delay (let semantic data accumulate first)
     setTimeout(() => {
       this.runSignatureComputation();
-    }, 60000);
+    }, SIGNATURE_INITIAL_DELAY_MS);
   }
 
   // ============================================================================
@@ -378,7 +401,8 @@ export class Scheduler {
 
     try {
       console.log('[scheduler] Running data cleanup');
-      cleanupOldData(DEFAULT_SETTINGS.dataRetentionDays);
+      const settings = getSettings();
+      cleanupOldData(settings.dataRetentionDays || DEFAULT_SETTINGS.dataRetentionDays);
       if (task) task.lastRun = new Date();
       console.log('[scheduler] Cleanup completed');
     } catch (error) {

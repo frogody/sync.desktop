@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   ACTIVITY_GET_SUMMARY: 'activity:get-summary',
   ACTIVITY_GET_DETAILED_CONTEXT: 'activity:get-detailed-context',
   ACTIVITY_GET_CONTEXT_FOR_SYNC: 'activity:get-context-for-sync',
+  // TODO: No handler registered — reserved for future renderer-based tracking toggle (currently tray-only)
   ACTIVITY_TOGGLE_TRACKING: 'activity:toggle-tracking',
   ACTIVITY_STATUS: 'activity:status',
 
@@ -28,7 +29,8 @@ export const IPC_CHANNELS = {
   AUTH_STATUS: 'auth:status',
   AUTH_CALLBACK: 'auth:callback',
 
-  // SYNC Agent
+  // SYNC Agent — TODO: No handlers registered. Reserved for future main-process SYNC streaming.
+  // Currently, renderer calls Supabase edge functions directly via fetch().
   SYNC_SEND_MESSAGE: 'sync:send-message',
   SYNC_STREAM_CHUNK: 'sync:stream-chunk',
   SYNC_STREAM_END: 'sync:stream-end',
@@ -38,6 +40,7 @@ export const IPC_CHANNELS = {
   // Settings
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
+  // TODO: No handler registered — reserved for future settings reset feature
   SETTINGS_RESET: 'settings:reset',
   SETTINGS_SET_API_KEY: 'settings:set-api-key',
   SETTINGS_GET_API_KEY_STATUS: 'settings:get-api-key-status',
@@ -45,6 +48,7 @@ export const IPC_CHANNELS = {
   // Cloud Sync
   CLOUD_SYNC_NOW: 'cloud:sync-now',
   CLOUD_SYNC_STATUS: 'cloud:sync-status',
+  // TODO: No handler registered — reserved for future last-sync timestamp query
   CLOUD_LAST_SYNC: 'cloud:last-sync',
 
   // System
@@ -73,6 +77,9 @@ export const IPC_CHANNELS = {
   DEEP_CONTEXT_DISMISS_COMMITMENT: 'deep-context:dismiss-commitment',
   DEEP_CONTEXT_COMPLETE_COMMITMENT: 'deep-context:complete-commitment',
   DEEP_CONTEXT_GET_ENRICHED_CONTEXT: 'deep-context:get-enriched-context',
+
+  // Health Checks (INF-009)
+  HEALTH_CHECK: 'health:check',
 
   // Semantic Pipeline
   SEMANTIC_GET_WORK_CONTEXT: 'semantic:get-work-context',

@@ -8,7 +8,9 @@
 import { autoUpdater, UpdateCheckResult, UpdateInfo } from 'electron-updater';
 import { ipcMain, app } from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipcChannels';
+import { UPDATER_INITIAL_DELAY_MS, UPDATER_CHECK_INTERVAL_MS } from '../../shared/constants';
 import { getFloatingWidget } from '../windows/floatingWidget';
+import { registerHealthProvider } from './healthCheck';
 
 // ============================================================================
 // Configuration
@@ -191,6 +193,14 @@ export function initAutoUpdater(): void {
   // Register IPC handlers always (so renderer can call them)
   registerUpdateIpcHandlers();
 
+  // Register health provider
+  registerHealthProvider('auto-updater', () => ({
+    name: 'auto-updater',
+    status: isChecking || isDownloading ? 'running' : 'running',
+    lastActivity: updateInfo ? Date.now() : null,
+    ...(updateAvailable && { error: undefined }),
+  }));
+
   // Only auto-check in production
   if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
     console.log('[updater] Skipping auto-check in development mode');
@@ -202,10 +212,10 @@ export function initAutoUpdater(): void {
   // Check for updates on startup (after a delay)
   setTimeout(() => {
     checkForUpdates();
-  }, 10000);
+  }, UPDATER_INITIAL_DELAY_MS);
 
-  // Check every 4 hours
+  // Check periodically
   setInterval(() => {
     checkForUpdates();
-  }, 4 * 60 * 60 * 1000);
+  }, UPDATER_CHECK_INTERVAL_MS);
 }

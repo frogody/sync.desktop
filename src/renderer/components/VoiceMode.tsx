@@ -2,7 +2,7 @@
  * Voice Mode Component
  *
  * Voice interaction interface for the desktop widget.
- * Uses Web Speech API for recognition and Together.ai TTS via sync-voice endpoint.
+ * Uses Web Speech API for recognition and browser speechSynthesis for TTS output.
  * Includes rich activity context for more intelligent responses.
  */
 
@@ -31,6 +31,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Fetch activity context on mount and periodically
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError('Speech recognition not supported');
+      setError('Voice input is not available on this system. Try using the chat instead.');
       return;
     }
 
@@ -94,8 +95,15 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
-      if (event.error !== 'no-speech') {
-        setError(`Recognition error: ${event.error}`);
+      const errorCode = event.error as string;
+      if (errorCode === 'no-speech') {
+        setError("I didn't hear anything. Please try speaking again.");
+      } else if (errorCode === 'audio-capture') {
+        setError('Microphone not available. Check your audio settings.');
+      } else if (errorCode === 'not-allowed') {
+        setError('Microphone access denied. Please allow microphone access in System Settings.');
+      } else {
+        setError('Voice recognition encountered an issue. Please try again.');
       }
       setState('idle');
     };
@@ -154,23 +162,46 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to get response');
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('AUTH_ERROR');
+          } else if (response.status === 429) {
+            throw new Error('RATE_LIMIT');
+          } else if (response.status >= 500) {
+            throw new Error('SERVER_ERROR');
+          }
+          throw new Error('UNKNOWN_ERROR');
         }
 
         const data = await response.json();
 
-        setResponse(data.text);
+        const responseText = data.text || '';
+        setResponse(responseText);
         setState('speaking');
 
-        // Play audio response
-        if (data.audio) {
-          playAudio(data.audio, data.audioFormat || 'mp3');
+        // Use browser speechSynthesis for audio output
+        if (responseText) {
+          const utterance = new SpeechSynthesisUtterance(responseText);
+          utterance.rate = 1.0;
+          utterance.onend = () => setState('idle');
+          utterance.onerror = () => setState('idle');
+          speechSynthesis.speak(utterance);
         } else {
           setState('idle');
         }
       } catch (error) {
         console.error('Voice processing error:', error);
-        setError('Failed to process voice input');
+        const errMsg = (error as Error).message;
+        if (errMsg === 'AUTH_ERROR') {
+          setError('Your session has expired. Please sign out and sign back in.');
+        } else if (errMsg === 'RATE_LIMIT') {
+          setError('Too many requests. Please wait a moment and try again.');
+        } else if (errMsg === 'SERVER_ERROR') {
+          setError('SYNC is temporarily unavailable. Please try again in a few minutes.');
+        } else if (errMsg === 'Failed to fetch' || errMsg === 'NetworkError when attempting to fetch resource.' || errMsg === 'Load failed') {
+          setError('Could not reach SYNC. Check your internet connection and try again.');
+        } else {
+          setError('Could not process your voice input. Please try again.');
+        }
         setState('idle');
       }
     },
@@ -220,7 +251,41 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    speechSynthesis.cancel();
     setState('idle');
+  }, []);
+
+  // Focus trap: keep Tab within voice mode
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleFocusTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = container.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleFocusTrap);
+    return () => container.removeEventListener('keydown', handleFocusTrap);
   }, []);
 
   // Handle escape key
@@ -250,19 +315,19 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div ref={containerRef} className="flex flex-col h-full">
       {/* Header */}
       <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gradient-to-r from-sync-cyan to-sync-purple animate-pulse" />
           <span className="text-white font-medium text-sm">Voice Mode</span>
           {activityContext?.currentApp && (
-            <span className="text-white/40 text-xs ml-2">
+            <span className="text-white/60 text-xs ml-2">
               • {activityContext.currentApp}
             </span>
           )}
         </div>
-        <button onClick={onClose} className="close-button">
+        <button onClick={onClose} className="close-button" aria-label="Close voice mode">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
             <path d="M6 4.586L10.293.293a1 1 0 111.414 1.414L7.414 6l4.293 4.293a1 1 0 01-1.414 1.414L6 7.414l-4.293 4.293a1 1 0 01-1.414-1.414L4.586 6 .293 1.707A1 1 0 011.707.293L6 4.586z" />
           </svg>
@@ -302,6 +367,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           {state === 'idle' && (
             <button
               onClick={startListening}
+              aria-label="Start recording"
               className="w-20 h-20 rounded-full bg-gradient-to-r from-sync-blue to-sync-purple
                          flex items-center justify-center hover:scale-105 active:scale-95
                          transition-transform shadow-lg shadow-sync-blue/30"
@@ -321,19 +387,22 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         </div>
 
         {/* Status Text */}
-        <p className="text-white/80 text-center text-sm px-4 max-w-full">
+        <p className="text-white/80 text-center text-sm px-4 max-w-full" role="status" aria-live="assertive">
           {getStatusText()}
         </p>
 
         {/* Error */}
-        {error && (
-          <p className="text-red-400 text-center text-xs mt-2">{error}</p>
-        )}
+        <div aria-live="assertive" aria-atomic="true">
+          {error && (
+            <p className="text-red-400 text-center text-xs mt-2" role="alert">{error}</p>
+          )}
+        </div>
 
         {/* Cancel Button */}
         {state !== 'idle' && (
           <button
             onClick={stopListening}
+            aria-label="Cancel voice interaction"
             className="mt-6 btn-ghost text-sm"
           >
             Cancel
@@ -343,12 +412,14 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
       {/* Hint */}
       <div className="px-4 py-3 border-t border-white/10">
-        <p className="text-white/40 text-xs text-center">
+        <p className="text-white/60 text-xs text-center">
           {state === 'idle'
             ? 'Press Escape to close'
             : state === 'listening'
             ? 'Speak clearly, then wait'
-            : 'Please wait...'}
+            : state === 'processing'
+            ? 'Thinking...'
+            : 'Responding...'}
         </p>
       </div>
     </div>

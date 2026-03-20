@@ -14,6 +14,7 @@ import {
   getUnsyncedHourlySummaries,
   markHourlySummaryAsSynced,
 } from '../db/queries';
+import { registerHealthProvider } from './healthCheck';
 
 // ============================================================================
 // Types
@@ -112,6 +113,14 @@ const APP_CATEGORIES: Record<string, string> = {
 
 export class SummaryService {
   private lastSummaryHour: Date | null = null;
+
+  constructor() {
+    registerHealthProvider('summary-service', () => ({
+      name: 'summary-service',
+      status: 'running',
+      lastActivity: this.lastSummaryHour?.getTime() ?? null,
+    }));
+  }
 
   // ============================================================================
   // Summary Generation

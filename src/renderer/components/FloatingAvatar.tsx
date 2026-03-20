@@ -75,10 +75,21 @@ export default function FloatingAvatar({ onClick }: FloatingAvatarProps) {
     };
   }, [onClick]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  }, [onClick]);
+
   return (
     <div
+      role="button"
+      aria-label="Open SYNC assistant"
+      tabIndex={0}
       className="w-full h-full flex items-center justify-center"
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
       style={{
         background: 'transparent',
         cursor: isDraggingRef.current ? 'grabbing' : 'pointer',

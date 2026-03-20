@@ -6,9 +6,19 @@
  * Three tabs: Overview | Threads | Patterns
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 type Tab = 'overview' | 'threads' | 'patterns';
+
+const TAB_LIST: Tab[] = ['overview', 'threads', 'patterns'];
+
+function formatActivityType(type: string): string {
+  return type.replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
+}
+
+function formatMetricName(name: string): string {
+  return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 interface WorkContext {
   currentThread: any;
@@ -144,26 +154,48 @@ export default function SemanticDashboard({ onBack }: SemanticDashboardProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="no-drag p-1.5 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+            aria-label="Back to chat"
+            className="no-drag p-1.5 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
           <div>
-            <h3 className="font-semibold text-white text-sm">Work Insights</h3>
-            <p className="text-xs text-zinc-500">Semantic Analysis</p>
+            <h1 className="font-semibold text-white text-sm">Work Insights</h1>
+            <p className="text-xs text-zinc-400">Activity Patterns</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-white/10 px-4">
-        {(['overview', 'threads', 'patterns'] as Tab[]).map((t) => (
+      <div
+        className="flex border-b border-white/10 px-4"
+        role="tablist"
+        aria-label="Dashboard tabs"
+        onKeyDown={(e) => {
+          const currentIndex = TAB_LIST.indexOf(tab);
+          if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            const next = TAB_LIST[(currentIndex + 1) % TAB_LIST.length];
+            setTab(next);
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const prev = TAB_LIST[(currentIndex - 1 + TAB_LIST.length) % TAB_LIST.length];
+            setTab(prev);
+          }
+        }}
+      >
+        {TAB_LIST.map((t) => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
+            aria-controls={`tabpanel-${t}`}
+            id={`tab-${t}`}
+            tabIndex={tab === t ? 0 : -1}
             onClick={() => setTab(t)}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none ${
               tab === t
                 ? 'text-cyan-400 border-cyan-400'
                 : 'text-zinc-500 border-transparent hover:text-zinc-300'
@@ -175,7 +207,12 @@ export default function SemanticDashboard({ onBack }: SemanticDashboardProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-3"
+        role="tabpanel"
+        id={`tabpanel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+      >
         {loading ? (
           <div className="h-full flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin" />
@@ -203,7 +240,7 @@ function EmptyState() {
           <path d="M12 6v6l4 2" />
         </svg>
       </div>
-      <h4 className="text-sm font-medium text-zinc-300 mb-1">No data yet</h4>
+      <h2 className="text-sm font-medium text-zinc-300 mb-1">No data yet</h2>
       <p className="text-xs text-zinc-500 max-w-[220px]">
         Keep working and SYNC will learn your patterns. Data appears after the first analysis cycle.
       </p>
@@ -218,7 +255,7 @@ function OverviewTab({ workContext }: { workContext: WorkContext }) {
     <>
       {/* Work Context Card */}
       <div className="bg-zinc-800/50 rounded-xl p-3 border border-white/5">
-        <h4 className="text-xs font-medium text-zinc-400 mb-2">Current Work</h4>
+        <h2 className="text-xs font-medium text-zinc-400 mb-2">Current Work</h2>
         {currentThread ? (
           <div className="space-y-2">
             <p className="text-sm text-white font-medium">
@@ -233,20 +270,20 @@ function OverviewTab({ workContext }: { workContext: WorkContext }) {
               )}
               {currentThread.primaryActivityType && (
                 <span className={`px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded-full`}>
-                  {currentThread.primaryActivityType}
+                  {formatActivityType(currentThread.primaryActivityType)}
                 </span>
               )}
             </div>
           </div>
         ) : (
-          <p className="text-xs text-zinc-500">No active thread detected</p>
+          <p className="text-xs text-zinc-500">No active thread detected — keep working and one will appear automatically</p>
         )}
       </div>
 
       {/* Entity Pills */}
       {recentEntities.length > 0 && (
         <div className="bg-zinc-800/50 rounded-xl p-3 border border-white/5">
-          <h4 className="text-xs font-medium text-zinc-400 mb-2">Recent Entities</h4>
+          <h2 className="text-xs font-medium text-zinc-400 mb-2">Recent Entities</h2>
           <div className="flex flex-wrap gap-1.5">
             {recentEntities.slice(0, 8).map((entity: any) => (
               <span
@@ -264,14 +301,21 @@ function OverviewTab({ workContext }: { workContext: WorkContext }) {
       {/* Activity Distribution */}
       {activityDistribution.length > 0 && (
         <div className="bg-zinc-800/50 rounded-xl p-3 border border-white/5">
-          <h4 className="text-xs font-medium text-zinc-400 mb-2">Activity Distribution (24h)</h4>
+          <h2 className="text-xs font-medium text-zinc-400 mb-2">Activity Distribution (24h)</h2>
           <div className="space-y-2">
             {activityDistribution.map((item: any) => (
               <div key={item.type} className="flex items-center gap-2">
                 <span className={`text-[10px] w-28 truncate ${ACTIVITY_TEXT_COLORS[item.type] || 'text-zinc-400'}`}>
-                  {item.type}
+                  {formatActivityType(item.type)}
                 </span>
-                <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div
+                  className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden"
+                  role="meter"
+                  aria-label={`${formatActivityType(item.type)}: ${Math.round(item.percentage)}%`}
+                  aria-valuenow={Math.round(item.percentage)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
                   <div
                     className={`h-full rounded-full ${ACTIVITY_COLORS[item.type] || 'bg-zinc-500'}`}
                     style={{ width: `${Math.min(item.percentage, 100)}%` }}
@@ -293,7 +337,8 @@ function ThreadsTab({ threads }: { threads: any[] }) {
   if (threads.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-xs text-zinc-500">No active threads</p>
+        <p className="text-xs text-zinc-400">No active work threads</p>
+        <p className="text-[10px] text-zinc-500 mt-1">Threads represent your ongoing tasks and appear automatically as you work</p>
       </div>
     );
   }
@@ -307,7 +352,7 @@ function ThreadsTab({ threads }: { threads: any[] }) {
         >
           <div className="flex items-start justify-between mb-1.5">
             <p className="text-sm text-white font-medium flex-1 mr-2">
-              {thread.title || 'Untitled'}
+              {thread.title || 'Untitled Thread'}
             </p>
             <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${
               thread.status === 'active'
@@ -322,7 +367,7 @@ function ThreadsTab({ threads }: { threads: any[] }) {
             <span>{timeAgo(thread.startedAt)}</span>
             {thread.primaryActivityType && (
               <span className={ACTIVITY_TEXT_COLORS[thread.primaryActivityType] || 'text-zinc-400'}>
-                {thread.primaryActivityType}
+                {formatActivityType(thread.primaryActivityType)}
               </span>
             )}
           </div>
@@ -348,8 +393,8 @@ function PatternsTab({ signatures }: { signatures: any[] }) {
   if (signatures.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-xs text-zinc-500">No behavioral signatures computed yet</p>
-        <p className="text-[10px] text-zinc-600 mt-1">Signatures are computed after sufficient data is collected</p>
+        <p className="text-xs text-zinc-500">No work patterns detected yet</p>
+        <p className="text-[10px] text-zinc-600 mt-1">Patterns appear after a few days of activity tracking</p>
       </div>
     );
   }
@@ -374,9 +419,9 @@ function PatternsTab({ signatures }: { signatures: any[] }) {
     <div className="space-y-3">
       {Object.entries(grouped).map(([category, sigs]) => (
         <div key={category} className="bg-zinc-800/50 rounded-xl p-3 border border-white/5">
-          <h4 className="text-xs font-medium text-zinc-400 mb-2">
+          <h2 className="text-xs font-medium text-zinc-400 mb-2">
             {CATEGORY_LABELS[category] || category}
-          </h4>
+          </h2>
           <div className="space-y-1.5">
             {sigs.map((sig: any) => {
               const isHighlight = HIGHLIGHT_METRICS.has(sig.metricName);
@@ -388,7 +433,7 @@ function PatternsTab({ signatures }: { signatures: any[] }) {
                   }`}
                 >
                   <span className="text-[11px] text-zinc-300">
-                    {sig.metricName.replace(/_/g, ' ')}
+                    {formatMetricName(sig.metricName)}
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-white font-medium">

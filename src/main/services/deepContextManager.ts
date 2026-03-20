@@ -29,6 +29,7 @@ import {
 } from '../../shared/types';
 import { getDatabase } from '../db/database';
 import { getTogetherApiKey } from '../store';
+import { CROSS_REFERENCE_INTERVAL_MS } from '../../shared/constants';
 
 // ============================================================================
 // Types
@@ -66,7 +67,6 @@ export class DeepContextManager extends EventEmitter {
   private lastCaptureTime: number | null = null;
 
   private crossReferenceInterval: NodeJS.Timeout | null = null;
-  private readonly CROSS_REFERENCE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(settings: Partial<DeepContextSettings> = {}) {
     super();
@@ -114,7 +114,7 @@ export class DeepContextManager extends EventEmitter {
     // Start cross-reference checking
     this.crossReferenceInterval = setInterval(() => {
       this.checkCommitmentsForFollowUp();
-    }, this.CROSS_REFERENCE_INTERVAL_MS);
+    }, CROSS_REFERENCE_INTERVAL_MS);
 
     // Initial check
     setTimeout(() => {

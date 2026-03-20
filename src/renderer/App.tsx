@@ -134,8 +134,9 @@ export default function App() {
   // Show loading state
   if (appState === 'loading') {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-black">
+      <div className="w-full h-full flex items-center justify-center bg-black" role="status" aria-label="Loading SYNC Desktop">
         <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <span className="sr-only">Loading...</span>
       </div>
     );
   }
@@ -163,7 +164,9 @@ export default function App() {
     <SyncStateProvider>
       <div className={`w-full h-full relative ${containerClass}`}>
         {mode === 'avatar' && (
-          <FloatingAvatar onClick={handleAvatarClick} />
+          <div aria-description="Click once for chat, double-click for voice, triple-click for web app" title="Click: Chat | Double-click: Voice | Triple-click: Web app">
+            <FloatingAvatar onClick={handleAvatarClick} />
+          </div>
         )}
 
         {mode === 'chat' && !showDashboard && (

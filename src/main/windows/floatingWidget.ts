@@ -5,8 +5,9 @@
  * Handles expansion to chat/voice modes.
  */
 
-import { BrowserWindow, screen, app } from 'electron';
+import { BrowserWindow, screen, app, session } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import {
   WIDGET_SIZES,
   CHAT_WINDOW_SIZE,
@@ -31,10 +32,62 @@ export function setNativeWidgetActive(active: boolean): void {
 }
 
 // ============================================================================
+// Preload Path Resolution (LINK-005)
+// ============================================================================
+
+function getPreloadPath(): string {
+  // In packaged app, __dirname is inside app.asar/dist/main/windows/
+  // In dev, __dirname is dist/main/windows/
+  // Both resolve the same relative path to dist/preload/index.js
+  const preloadPath = path.join(__dirname, '../../preload/index.js');
+
+  // Verify the preload script exists (non-blocking check)
+  if (!fs.existsSync(preloadPath)) {
+    console.error('[widget] CRITICAL: Preload script not found at:', preloadPath);
+    console.error('[widget] __dirname is:', __dirname);
+    console.error('[widget] app.isPackaged:', app.isPackaged);
+  }
+
+  return preloadPath;
+}
+
+// ============================================================================
+// Content Security Policy (SEC-027) — production only
+// ============================================================================
+
+function setupCSP(): void {
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  // Skip CSP in development — Vite HMR requires unsafe-eval and ws: connections
+  if (devServerUrl) return;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.together.xyz; " +
+          "img-src 'self' data:; " +
+          "font-src 'self' data:; " +
+          "object-src 'none'; " +
+          "base-uri 'self'"
+        ],
+      },
+    });
+  });
+  console.log('[widget] Content Security Policy enabled');
+}
+
+// ============================================================================
 // Window Creation
 // ============================================================================
 
 export async function createFloatingWidget(): Promise<BrowserWindow> {
+  // Set up Content Security Policy before loading any content
+  setupCSP();
+
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth } = primaryDisplay.workAreaSize;
 
@@ -59,7 +112,7 @@ export async function createFloatingWidget(): Promise<BrowserWindow> {
     backgroundColor: '#000000',
     titleBarStyle: 'hidden',
     webPreferences: {
-      preload: path.join(__dirname, '../../preload/index.js'),
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,

@@ -18,14 +18,13 @@ import {
   ActionSource,
   ActivityType,
 } from '../../shared/types';
-import { SUPABASE_URL } from '../../shared/constants';
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions';
-const MODEL = 'moonshotai/Kimi-K2-Instruct';
+import {
+  SUPABASE_URL,
+  TOGETHER_API_URL,
+  TOGETHER_MODEL,
+  SEMANTIC_BATCH_DELAY_MS,
+  SEMANTIC_MAX_BATCH_SIZE,
+} from '../../shared/constants';
 
 // App categories for activity detection
 const APP_ACTIVITY_MAP: Record<string, ActivityType> = {
@@ -122,8 +121,8 @@ export class SemanticAnalyzer {
   }> = [];
   private isProcessing: boolean = false;
   private batchTimeout: NodeJS.Timeout | null = null;
-  private readonly BATCH_DELAY_MS = 2000; // Wait 2 seconds to batch requests
-  private readonly MAX_BATCH_SIZE = 3;
+  private readonly BATCH_DELAY_MS = SEMANTIC_BATCH_DELAY_MS;
+  private readonly MAX_BATCH_SIZE = SEMANTIC_MAX_BATCH_SIZE;
 
   constructor() {
     // API key will be set from environment or store
@@ -560,7 +559,7 @@ Return ONLY valid JSON, no other text.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: TOGETHER_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

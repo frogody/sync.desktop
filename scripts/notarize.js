@@ -37,12 +37,13 @@ exports.default = async function notarizing(context) {
 
   const appName = context.packager.appInfo.productFilename;
   const appPath = path.join(appOutDir, `${appName}.app`);
+  const appBundleId = context.packager.appInfo.id; // Read from electron-builder config
 
-  console.log(`Notarizing ${appPath}...`);
+  console.log(`Notarizing ${appPath} (bundle: ${appBundleId})...`);
 
   try {
     await notarize({
-      appBundleId: 'com.isyncso.sync-desktop',
+      appBundleId,
       appPath,
       appleId: process.env.APPLE_ID,
       appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,

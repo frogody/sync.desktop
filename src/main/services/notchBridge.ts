@@ -11,7 +11,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import path from 'path';
 import { app, shell, systemPreferences } from 'electron';
 import { getAccessToken, getUser } from '../store';
@@ -76,6 +76,18 @@ export class NotchBridge extends EventEmitter {
       console.log('[notch-bridge] SYNCWidget not found at:', widgetPath);
       console.log('[notch-bridge] Falling back to BrowserWindow widget');
       return;
+    }
+
+    // SEC-019: Verify binary code signature in production builds
+    if (app.isPackaged) {
+      try {
+        execSync(`codesign --verify --deep --strict "${widgetPath}"`, { timeout: 5000 });
+        console.log('[notch-bridge] SYNCWidget code signature verified');
+      } catch (err) {
+        console.error('[notch-bridge] SYNCWidget code signature verification FAILED — refusing to launch');
+        console.error('[notch-bridge] This may indicate the binary has been tampered with');
+        return;
+      }
     }
 
     // Don't launch the native widget without accessibility permission --
@@ -473,7 +485,16 @@ export class NotchBridge extends EventEmitter {
 
       case 'open_external':
         if (typeof msg.payload.url === 'string') {
-          shell.openExternal(msg.payload.url);
+          try {
+            const parsed = new URL(msg.payload.url);
+            if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+              shell.openExternal(msg.payload.url);
+            } else {
+              console.warn('[notch-bridge] Blocked open_external with disallowed protocol:', parsed.protocol);
+            }
+          } catch {
+            console.warn('[notch-bridge] Blocked open_external with invalid URL:', msg.payload.url);
+          }
         }
         break;
 

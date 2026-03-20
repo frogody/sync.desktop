@@ -10,6 +10,7 @@ import { ActivityTracker, ActivityEvent } from './activityTracker';
 import { ActivityLog } from '../../shared/types';
 import { CONTEXT_WINDOW_MINUTES } from '../../shared/constants';
 import { getRecentActivity, getActivityByDateRange } from '../db/queries';
+import { registerHealthProvider } from './healthCheck';
 
 // ============================================================================
 // Types
@@ -115,6 +116,7 @@ export class ContextManager {
   private activityTracker: ActivityTracker;
   private lastSnapshot: ContextSnapshot | null = null;
   private snapshotInterval: NodeJS.Timeout | null = null;
+  private _isRunning: boolean = false;
 
   constructor(activityTracker: ActivityTracker) {
     this.activityTracker = activityTracker;
@@ -123,6 +125,13 @@ export class ContextManager {
     this.activityTracker.on('activity', (event: ActivityEvent) => {
       this.handleActivityEvent(event);
     });
+
+    // Register health provider
+    registerHealthProvider('context-manager', () => ({
+      name: 'context-manager',
+      status: this._isRunning ? 'running' : 'stopped',
+      lastActivity: this.lastSnapshot?.timestamp ?? null,
+    }));
   }
 
   // ============================================================================
@@ -131,6 +140,7 @@ export class ContextManager {
 
   start(snapshotIntervalMs: number = 60000): void {
     console.log('[context] Starting context manager');
+    this._isRunning = true;
 
     // Take initial snapshot
     this.takeSnapshot();
@@ -143,6 +153,7 @@ export class ContextManager {
 
   stop(): void {
     console.log('[context] Stopping context manager');
+    this._isRunning = false;
 
     if (this.snapshotInterval) {
       clearInterval(this.snapshotInterval);

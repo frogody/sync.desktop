@@ -129,6 +129,10 @@ export function setupIpcHandlers(
   // ============================================================================
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_EXPAND, (_event, mode: 'chat' | 'voice') => {
+    // SEC-006: Validate mode parameter
+    if (mode !== 'chat' && mode !== 'voice') {
+      return { success: false, error: 'Invalid mode. Must be "chat" or "voice".' };
+    }
     if (mode === 'chat') {
       expandToChat();
     } else if (mode === 'voice') {
@@ -145,6 +149,10 @@ export function setupIpcHandlers(
   // Use 'on' (fire-and-forget) instead of 'handle' (async round-trip)
   // for window move — prevents IPC queue backup during fast drags
   ipcMain.on(IPC_CHANNELS.WINDOW_MOVE, (_event, { x, y }: { x: number; y: number }) => {
+    // SEC-006: Validate x and y are finite numbers
+    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
     moveWidget(x, y);
   });
 
@@ -154,6 +162,11 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.ACTIVITY_GET_RECENT, (_event, minutes: number = 10) => {
     try {
+      // SEC-006: Validate and cap minutes to prevent excessive data retrieval
+      if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < 1) {
+        minutes = 10;
+      }
+      minutes = Math.min(minutes, 1440); // Cap at 24 hours
       const activities = getRecentActivity(minutes);
       return { success: true, data: activities };
     } catch (error) {
@@ -388,6 +401,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, (_event, updates: Partial<AppSettings>) => {
     try {
+      // SEC-006: Validate updates is a plain object
+      if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+        return { success: false, error: 'Updates must be a non-null object' };
+      }
       const newSettings = updateSettings(updates);
       return { success: true, data: newSettings };
     } catch (error) {
@@ -397,6 +414,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SET_API_KEY, (_event, key: string | null) => {
     try {
+      // SEC-006: Validate key is a non-empty string or null (to clear)
+      if (key !== null && (typeof key !== 'string' || key.trim().length === 0)) {
+        return { success: false, error: 'API key must be a non-empty string or null' };
+      }
       setTogetherApiKey(key);
 
       // Update the semantic analyzer with the new key
@@ -441,6 +462,11 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.JOURNAL_GET_HISTORY, (_event, days: number = 30) => {
     try {
+      // SEC-006: Validate and cap days
+      if (typeof days !== 'number' || !Number.isFinite(days) || days < 1) {
+        days = 30;
+      }
+      days = Math.min(days, 365); // Cap at 1 year
       const journals = getJournalHistory(days);
       return { success: true, data: journals };
     } catch (error) {
@@ -454,6 +480,20 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, async (_event, url: string) => {
     try {
+      // SEC-005: Validate URL before opening
+      if (typeof url !== 'string' || url.trim().length === 0) {
+        return { success: false, error: 'URL must be a non-empty string' };
+      }
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return { success: false, error: 'Invalid URL format' };
+      }
+      if (!['https:', 'http:'].includes(parsed.protocol)) {
+        return { success: false, error: `Blocked protocol: ${parsed.protocol}. Only http: and https: are allowed.` };
+      }
+
       await shell.openExternal(url);
       return { success: true };
     } catch (error) {
@@ -480,6 +520,11 @@ export function setupIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, async (_event, permission: string) => {
+    // SEC-006: Validate permission is an allowed value
+    const allowedPermissions = ['accessibility', 'screenCapture'];
+    if (typeof permission !== 'string' || !allowedPermissions.includes(permission)) {
+      return { success: false, error: `Invalid permission. Must be one of: ${allowedPermissions.join(', ')}` };
+    }
     if (process.platform === 'darwin') {
       if (permission === 'accessibility') {
         // Open System Settings directly — avoid isTrustedAccessibilityClient(true)
@@ -552,6 +597,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_DISMISS_COMMITMENT, (_event, commitmentId: number) => {
     try {
+      // SEC-006: Validate commitmentId is a positive integer
+      if (typeof commitmentId !== 'number' || !Number.isInteger(commitmentId) || commitmentId < 1) {
+        return { success: false, error: 'commitmentId must be a positive integer' };
+      }
       const deepContext = getDeepContextManager();
       if (deepContext) {
         deepContext.dismissCommitment(commitmentId);
@@ -565,6 +614,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.DEEP_CONTEXT_COMPLETE_COMMITMENT, (_event, commitmentId: number) => {
     try {
+      // SEC-006: Validate commitmentId is a positive integer
+      if (typeof commitmentId !== 'number' || !Number.isInteger(commitmentId) || commitmentId < 1) {
+        return { success: false, error: 'commitmentId must be a positive integer' };
+      }
       const deepContext = getDeepContextManager();
       if (deepContext) {
         deepContext.completeCommitment(commitmentId);
@@ -620,7 +673,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_ENTITIES, (_event, options?: { type?: string; limit?: number }) => {
     try {
-      const limit = options?.limit ?? 50;
+      // SEC-006: Validate and cap limit
+      let limit = options?.limit ?? 50;
+      if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) limit = 50;
+      limit = Math.min(limit, 500);
       let entities = getRecentEntities(limit);
       if (options?.type) {
         entities = entities.filter(e => e.type === options.type);
@@ -651,7 +707,11 @@ export function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.SEMANTIC_GET_ACTIVITY_DISTRIBUTION, (_event, days?: number) => {
     try {
-      const distribution = getActivityDistribution(days ?? 7);
+      // SEC-006: Validate and cap days
+      let validDays = days ?? 7;
+      if (typeof validDays !== 'number' || !Number.isFinite(validDays) || validDays < 1) validDays = 7;
+      validDays = Math.min(validDays, 90);
+      const distribution = getActivityDistribution(validDays);
       return { success: true, data: distribution };
     } catch (error) {
       return { success: false, error: String(error) };

@@ -46,6 +46,9 @@ export async function initDatabase(): Promise<void> {
   // Enable WAL mode for better performance
   db.pragma('journal_mode = WAL');
 
+  // Enable foreign key enforcement (must be set on every connection)
+  db.pragma('foreign_keys = ON');
+
   // Run migrations
   runMigrations();
 
@@ -612,6 +615,110 @@ function runMigrations(): void {
       sql: `
         -- screen_captures was missing a synced column needed by cloudSyncService
         ALTER TABLE screen_captures ADD COLUMN synced INTEGER DEFAULT 0;
+      `,
+    },
+    {
+      name: '012_unique_entity_relationships',
+      sql: `
+        -- DB-010: entity_relationships needs a unique constraint for ON CONFLICT to work
+        -- First, deduplicate existing rows: keep the one with the highest evidence_count per group
+        DELETE FROM entity_relationships
+        WHERE id NOT IN (
+          SELECT MIN(id) FROM entity_relationships
+          GROUP BY source_entity_id, target_entity_id, relationship_type
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_relationships_unique
+          ON entity_relationships(source_entity_id, target_entity_id, relationship_type);
+      `,
+    },
+    {
+      name: '013_unique_event_entity_links',
+      sql: `
+        -- DB-014: event_entity_links needs a unique constraint to prevent duplicate links
+        DELETE FROM event_entity_links
+        WHERE id NOT IN (
+          SELECT MIN(id) FROM event_entity_links
+          GROUP BY event_id, entity_id
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_event_entity_links_unique
+          ON event_entity_links(event_id, entity_id);
+      `,
+    },
+    {
+      name: '014_local_actions_table',
+      sql: `
+        -- DB-006: Move local_actions into the migration system
+        CREATE TABLE IF NOT EXISTS local_actions (
+          action_id TEXT PRIMARY KEY,
+          event_hash TEXT UNIQUE NOT NULL,
+          status TEXT NOT NULL DEFAULT 'detected',
+          local_title TEXT NOT NULL,
+          cloud_title TEXT,
+          action_type TEXT NOT NULL,
+          local_payload TEXT,
+          confidence REAL,
+          synced INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now')),
+          resolved_at TEXT
+        );
+      `,
+    },
+    {
+      name: '015_fix_screen_captures_synced_null',
+      sql: `
+        -- DB-017: Pre-migration rows have synced=NULL which is not matched by WHERE synced=0
+        UPDATE screen_captures SET synced = 0 WHERE synced IS NULL;
+      `,
+    },
+    {
+      name: '016_add_fk_indexes',
+      sql: `
+        -- DB-002: Add index on completed_actions.matched_commitment_id (FK to commitments.id)
+        CREATE INDEX IF NOT EXISTS idx_completed_actions_commitment
+          ON completed_actions(matched_commitment_id);
+
+        -- DB-003: Add indexes on source_capture_id FK columns across 4 tables
+        CREATE INDEX IF NOT EXISTS idx_email_contexts_capture
+          ON email_contexts(source_capture_id);
+        CREATE INDEX IF NOT EXISTS idx_calendar_contexts_capture
+          ON calendar_contexts(source_capture_id);
+        CREATE INDEX IF NOT EXISTS idx_action_items_capture
+          ON action_items(source_capture_id);
+        CREATE INDEX IF NOT EXISTS idx_commitments_capture
+          ON commitments(source_capture_id);
+      `,
+    },
+    {
+      name: '017_add_synced_columns',
+      sql: `
+        -- DB-007: Add synced column to action_items for sync consistency
+        ALTER TABLE action_items ADD COLUMN synced INTEGER DEFAULT 0;
+
+        -- DB-008: Add synced columns to email_contexts and calendar_contexts
+        ALTER TABLE email_contexts ADD COLUMN synced INTEGER DEFAULT 0;
+        ALTER TABLE calendar_contexts ADD COLUMN synced INTEGER DEFAULT 0;
+      `,
+    },
+    {
+      name: '018_unique_constraints_dedup',
+      sql: `
+        -- DB-012: Deduplicate entity_intent_map then add UNIQUE index
+        DELETE FROM entity_intent_map
+        WHERE id NOT IN (
+          SELECT MIN(id) FROM entity_intent_map
+          GROUP BY entity_id, intent_id
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_intent_unique
+          ON entity_intent_map(entity_id, intent_id);
+
+        -- DB-013: Deduplicate intent_sequences then add UNIQUE index
+        DELETE FROM intent_sequences
+        WHERE id NOT IN (
+          SELECT MIN(id) FROM intent_sequences
+          GROUP BY intent_id, activity_id
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_intent_sequences_unique
+          ON intent_sequences(intent_id, activity_id);
       `,
     },
   ];

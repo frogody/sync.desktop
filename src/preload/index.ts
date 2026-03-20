@@ -17,7 +17,7 @@ export interface ElectronAPI {
   // Window
   expandWindow: (mode: 'chat' | 'voice') => Promise<{ success: boolean }>;
   collapseWindow: () => Promise<{ success: boolean }>;
-  moveWindow: (x: number, y: number) => Promise<{ success: boolean }>;
+  moveWindow: (x: number, y: number) => void;
   onModeChange: (callback: (mode: WidgetMode) => void) => () => void;
 
   // Activity
@@ -163,7 +163,9 @@ const electronAPI: ElectronAPI = {
   // Window
   expandWindow: (mode) => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_EXPAND, mode),
   collapseWindow: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_COLLAPSE),
-  moveWindow: (x, y) => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MOVE, { x, y }),
+  // Use send (fire-and-forget) instead of invoke — handler uses ipcMain.on(),
+  // and send avoids IPC round-trip overhead during 60fps drag operations
+  moveWindow: (x, y) => ipcRenderer.send(IPC_CHANNELS.WINDOW_MOVE, { x, y }),
   onModeChange: (callback) => {
     const handler = (_event: any, mode: WidgetMode) => callback(mode);
     ipcRenderer.on(IPC_CHANNELS.WINDOW_MODE_CHANGE, handler);

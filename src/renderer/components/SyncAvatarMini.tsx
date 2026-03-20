@@ -425,6 +425,7 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className="absolute inset-0"
+        aria-hidden="true"
       >
         <defs>
           <filter id="miniGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -471,6 +472,7 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         ref={canvasRef}
         className="absolute inset-0 pointer-events-none"
         style={{ width: size, height: size }}
+        aria-hidden="true"
       />
 
       {/* Success flash overlay — hexagonal */}

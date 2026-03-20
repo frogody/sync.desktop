@@ -1,11 +1,18 @@
 import Store from 'electron-store';
+import crypto from 'crypto';
+import os from 'os';
 
 const SERVICE_NAME = 'frogody-sync-desktop';
 const ACCOUNT_NAME = 'device-api-key';
 
-// Initialize electron-store with projectName for test environments
+// SEC-020/SEC-030: Derive a machine-specific encryption key for the fallback store
+// so the API key is not stored in plaintext when keytar is unavailable.
+const machineId = `${os.hostname()}:${os.userInfo().username}:sync-desktop-pairing`;
+const fallbackEncryptionKey = crypto.createHash('sha256').update(machineId).digest('hex');
+
 const store = new Store({
-  projectName: 'sync-desktop-test',
+  name: 'sync-desktop-pairing',
+  encryptionKey: fallbackEncryptionKey,
 });
 
 let keytarAvailable = false;

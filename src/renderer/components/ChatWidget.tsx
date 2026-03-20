@@ -79,6 +79,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -88,6 +89,39 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // Focus trap: keep Tab within the chat widget
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleFocusTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = container.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleFocusTrap);
+    return () => container.removeEventListener('keydown', handleFocusTrap);
   }, []);
 
   // Check authentication status on mount and listen for auth changes
@@ -300,7 +334,14 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       console.log('[ChatWidget] SYNC response status:', response.status);
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('AUTH_ERROR');
+        } else if (response.status === 429) {
+          throw new Error('RATE_LIMIT');
+        } else if (response.status >= 500) {
+          throw new Error('SERVER_ERROR');
+        }
+        throw new Error('UNKNOWN_ERROR');
       }
 
       // Handle streaming response
@@ -396,7 +437,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       }
 
       // Finalize the message - strip ACTION tags from display
-      const cleanContent = stripActionTags(fullContent) || "I'm here to help!";
+      const cleanContent = stripActionTags(fullContent) || 'Your request was processed, but SYNC returned no visible response. Please try rephrasing your question.';
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
@@ -416,12 +457,25 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       }
 
       console.error('Chat error:', error);
+      let errorMessage: string;
+      const errMsg = (error as Error).message;
+      if (errMsg === 'AUTH_ERROR') {
+        errorMessage = 'Your session has expired. Please sign out and sign back in to continue.';
+      } else if (errMsg === 'RATE_LIMIT') {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (errMsg === 'SERVER_ERROR') {
+        errorMessage = 'SYNC is temporarily unavailable. Please try again in a few minutes.';
+      } else if (errMsg === 'Failed to fetch' || errMsg === 'NetworkError when attempting to fetch resource.' || errMsg === 'Load failed') {
+        errorMessage = 'Could not reach SYNC. Check your internet connection and try again.';
+      } else {
+        errorMessage = 'Something unexpected went wrong. Please check your connection and try again.';
+      }
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
             ? {
                 ...msg,
-                content: "Sorry, I couldn't process that. Please try again.",
+                content: errorMessage,
                 isStreaming: false,
               }
             : msg
@@ -454,7 +508,15 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-900/95">
+    <div ref={containerRef} className="flex flex-col h-full bg-zinc-900/95">
+      {/* Skip to main content link for keyboard users */}
+      <a
+        href="#chat-input"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-3 focus:py-1 focus:bg-cyan-500 focus:text-white focus:rounded-lg focus:text-sm"
+        onClick={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
+      >
+        Skip to message input
+      </a>
       {/* Update notification banner */}
       <UpdateBanner />
       {/* Header - Matches web app styling */}
@@ -463,8 +525,8 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
           {/* SYNC Avatar - Animated colorful ring */}
           <SyncAvatarMini size={40} />
           <div>
-            <h3 className="font-semibold text-white text-sm">SYNC</h3>
-            <p className="text-xs text-zinc-500">AI Orchestrator</p>
+            <h1 className="font-semibold text-white text-sm">SYNC</h1>
+            <p className="text-xs text-zinc-400">AI Assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -473,6 +535,14 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             onClick={handleManualSync}
             disabled={syncStatus?.isSyncing}
             className="no-drag p-2 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+            role="status"
+            aria-label={
+              syncStatus?.isSyncing
+                ? 'Syncing in progress'
+                : syncStatus?.pendingItems
+                ? `${syncStatus.pendingItems.summaries + syncStatus.pendingItems.journals} items to sync — click to sync now`
+                : 'All synced — click to sync now'
+            }
             title={
               syncStatus?.isSyncing
                 ? 'Syncing...'
@@ -506,6 +576,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             <button
               onClick={onDashboard}
               className="no-drag p-2 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+              aria-label="Work Insights"
               title="Work Insights"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -518,6 +589,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
           <button
             onClick={onClose}
             className="no-drag p-2 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+            aria-label="Close chat"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -527,7 +599,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3" role="log" aria-live="polite" aria-label="Chat messages">
         {/* Login Banner */}
         {isAuthenticated === false && (
           <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl p-4 border border-cyan-500/20">
@@ -540,7 +612,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
               </div>
               <div className="flex-1">
                 <p className="text-white text-sm font-medium">Connect your account</p>
-                <p className="text-white/50 text-xs">Sign in to access your data and personalized features</p>
+                <p className="text-white/70 text-xs">Sign in to access your data and personalized features</p>
               </div>
             </div>
             <button
@@ -568,12 +640,12 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             <div className="mb-4">
               <SyncAvatarMini size={64} />
             </div>
-            <h4 className="text-lg font-medium text-white mb-2">Hey! How can I help?</h4>
-            <p className="text-sm text-zinc-500 mb-4 max-w-sm">
+            <h2 className="text-lg font-medium text-white mb-2">Hey! How can I help?</h2>
+            <p className="text-sm text-zinc-400 mb-4 max-w-sm">
               I can help with invoices, products, prospects, and more. Just ask!
             </p>
             {activityContext && !activityContext.isIdle && activityContext.currentApp && (
-              <p className="text-xs text-zinc-600">
+              <p className="text-xs text-zinc-400">
                 I see you're working in {activityContext.currentApp}
               </p>
             )}
@@ -592,9 +664,9 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             {msg.actionExecuted && (
               <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2">
                 {msg.actionExecuted.success ? (
-                  <span className="text-green-400 text-xs">✓ Action completed</span>
+                  <span className="text-green-400 text-xs">✓ {msg.actionExecuted.type ? `${msg.actionExecuted.type.charAt(0).toUpperCase() + msg.actionExecuted.type.slice(1).replace(/_/g, ' ')} completed` : 'Action completed'}</span>
                 ) : (
-                  <span className="text-red-400 text-xs">✗ Action failed</span>
+                  <span className="text-red-400 text-xs">✗ {msg.actionExecuted.type ? `${msg.actionExecuted.type.charAt(0).toUpperCase() + msg.actionExecuted.type.slice(1).replace(/_/g, ' ')} failed — try again or check your data` : 'Action failed — try again or check your data'}</span>
                 )}
                 {msg.actionExecuted.redirectUrl && (
                   <button
@@ -603,7 +675,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
                         `https://app.isyncso.com${msg.actionExecuted!.redirectUrl}`
                       )
                     }
-                    className="text-cyan-400 text-xs hover:underline"
+                    className="text-cyan-400 text-xs hover:underline focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
                   >
                     View in app →
                   </button>
@@ -637,18 +709,21 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
         <div className="flex items-end gap-2">
           <input
             ref={inputRef}
+            id="chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Ask SYNC anything..."
+            placeholder="Ask about invoices, products, prospects..."
             className="chat-input flex-1"
+            aria-label="Message SYNC"
             disabled={isLoading}
           />
           {isLoading ? (
             <button
               onClick={stopStreaming}
               className="h-12 w-12 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors"
+              aria-label="Stop response"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-zinc-400">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -658,6 +733,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             <button
               onClick={sendMessage}
               disabled={!input.trim()}
+              aria-label="Send message"
               className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${
                 input.trim()
                   ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/20'
@@ -670,8 +746,8 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             </button>
           )}
         </div>
-        <p className="text-[10px] text-zinc-600 text-center mt-2">
-          Press Enter to send • Esc to close
+        <p className="text-[10px] text-zinc-500 text-center mt-2">
+          Press Enter to send &middot; Esc to close
         </p>
       </div>
     </div>
