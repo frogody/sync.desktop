@@ -54,6 +54,11 @@ async function testScreenCapturePermission(): Promise<boolean> {
 
 /**
  * Check current permission status
+ *
+ * On macOS Sequoia+, the system APIs cache permission state per-process.
+ * We use isTrustedAccessibilityClient(true) to force a re-evaluation,
+ * and always do a real screen capture test since getMediaAccessStatus
+ * is unreliable.
  */
 export async function checkPermissions(): Promise<PermissionStatus> {
   const results: PermissionStatus = {
@@ -63,20 +68,16 @@ export async function checkPermissions(): Promise<PermissionStatus> {
 
   if (process.platform === 'darwin') {
     // macOS accessibility permission (required for active-win/get-windows)
-    results.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+    // Pass `true` to force macOS to re-evaluate the trust state.
+    // With `false`, macOS caches the result and never updates it within
+    // the same process — which is why users grant access but the app
+    // doesn't detect it.
+    results.accessibility = systemPreferences.isTrustedAccessibilityClient(true);
 
-    // Screen capture permission — use real capture test
-    // First try the API (fast path), fall back to actual capture test
-    const screenStatus = systemPreferences.getMediaAccessStatus('screen');
-    if (screenStatus === 'granted') {
-      results.screenCapture = true;
-    } else {
-      // API says not granted, but it's unreliable on Sequoia+ — do a real test
-      results.screenCapture = await testScreenCapturePermission();
-      if (results.screenCapture) {
-        console.log('[permissions] getMediaAccessStatus reported not granted but real capture works — permission IS granted');
-      }
-    }
+    // Screen capture: always do a real capture test.
+    // getMediaAccessStatus('screen') is broken on macOS 14+/Sequoia,
+    // so skip it entirely and go straight to the real test.
+    results.screenCapture = await testScreenCapturePermission();
   } else {
     // Windows/Linux don't need explicit permissions
     results.accessibility = true;
@@ -129,12 +130,6 @@ export async function requestScreenCapturePermission(): Promise<boolean> {
 
   const granted = await testScreenCapturePermission();
   if (granted) {
-    return true;
-  }
-
-  // Also check API as fast path
-  const status = systemPreferences.getMediaAccessStatus('screen');
-  if (status === 'granted') {
     return true;
   }
 
