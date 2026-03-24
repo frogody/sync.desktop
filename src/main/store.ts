@@ -17,6 +17,7 @@ export interface StoreSchema {
   settings: AppSettings;
   auth: { accessToken?: string; refreshToken?: string };
   authState?: string;
+  authStateTimestamp?: number;
   user?: User;
 }
 
@@ -118,17 +119,23 @@ export function setRefreshToken(token: string | null): void {
   store.set('auth', { ...auth, refreshToken: token || undefined });
 }
 
-// SEC-007: Auth state with expiry — state is only valid for 5 minutes
-const AUTH_STATE_TIMEOUT_MS = 5 * 60 * 1000;
-let authStateTimestamp: number | null = null;
+// SEC-007: Auth state with expiry — state is only valid for 10 minutes
+// Increased from 5 min to allow new users time to install, read instructions, and complete auth
+const AUTH_STATE_TIMEOUT_MS = 10 * 60 * 1000;
+
+// authStateTimestamp is persisted to store (not in-memory) so it survives app restarts mid-auth
 
 export function getAuthState(): string | undefined {
   const state = store.get('authState') as string | undefined;
-  if (state && authStateTimestamp && (Date.now() - authStateTimestamp > AUTH_STATE_TIMEOUT_MS)) {
+  if (!state) return undefined;
+
+  // Check stored timestamp
+  const timestamp = store.get('authStateTimestamp') as number | undefined;
+  if (!timestamp || (Date.now() - timestamp > AUTH_STATE_TIMEOUT_MS)) {
     // Expired — clear it
-    console.warn('[store] Auth state expired (>5 min), clearing');
+    console.warn('[store] Auth state expired or missing timestamp, clearing');
     store.delete('authState');
-    authStateTimestamp = null;
+    store.delete('authStateTimestamp');
     return undefined;
   }
   return state;
@@ -137,21 +144,25 @@ export function getAuthState(): string | undefined {
 export function setAuthState(state: string | null): void {
   if (state) {
     store.set('authState', state);
-    authStateTimestamp = Date.now();
+    store.set('authStateTimestamp', Date.now());
   } else {
     store.delete('authState');
-    authStateTimestamp = null;
+    store.delete('authStateTimestamp');
   }
 }
 
 export function isAuthStateExpired(): boolean {
-  if (!authStateTimestamp) return true;
-  return Date.now() - authStateTimestamp > AUTH_STATE_TIMEOUT_MS;
+  const state = store.get('authState') as string | undefined;
+  if (!state) return true;
+  const timestamp = store.get('authStateTimestamp') as number | undefined;
+  if (!timestamp) return true;
+  return Date.now() - timestamp > AUTH_STATE_TIMEOUT_MS;
 }
 
 export function clearAuth(): void {
   store.set('auth', { accessToken: undefined, refreshToken: undefined });
   store.delete('authState');
+  store.delete('authStateTimestamp');
   store.delete('user');
 }
 

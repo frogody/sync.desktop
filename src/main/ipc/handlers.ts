@@ -519,6 +519,12 @@ export function setupIpcHandlers(
     return { success: true, data: status };
   });
 
+  ipcMain.handle(IPC_CHANNELS.SYSTEM_RELAUNCH_APP, () => {
+    app.relaunch();
+    app.exit(0);
+    return { success: true };
+  });
+
   ipcMain.handle(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, async (_event, permission: string) => {
     // SEC-006: Validate permission is an allowed value
     const allowedPermissions = ['accessibility', 'screenCapture'];

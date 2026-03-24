@@ -56,6 +56,7 @@ export const IPC_CHANNELS = {
   SYSTEM_GET_INFO: 'system:get-info',
   SYSTEM_CHECK_PERMISSIONS: 'system:check-permissions',
   SYSTEM_REQUEST_PERMISSION: 'system:request-permission',
+  SYSTEM_RELAUNCH_APP: 'system:relaunch-app',
 
   // Journal
   JOURNAL_GET_TODAY: 'journal:get-today',

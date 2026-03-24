@@ -20,12 +20,16 @@ export interface PermissionStatus {
 /**
  * Test screen recording permission by attempting an actual capture.
  * getMediaAccessStatus('screen') is broken on macOS 15+ for signed apps.
+ *
+ * Uses a slightly larger thumbnail (8x8) to reduce false negatives.
+ * On the first call after a grant, macOS sometimes returns an empty thumbnail —
+ * retry once after a short delay if that happens.
  */
-async function testScreenCapturePermission(): Promise<boolean> {
+async function testScreenCapturePermission(retry = true): Promise<boolean> {
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: 1, height: 1 },
+      thumbnailSize: { width: 8, height: 8 },
     });
 
     if (!sources || sources.length === 0) {
@@ -36,15 +40,16 @@ async function testScreenCapturePermission(): Promise<boolean> {
     // When permission is denied, macOS returns a blank/black thumbnail
     const thumb = sources[0].thumbnail;
     if (!thumb || thumb.isEmpty()) {
+      if (retry) {
+        // First call after permission grant sometimes returns empty — retry once after short delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return testScreenCapturePermission(false);
+      }
       return false;
     }
 
-    // Check if the thumbnail has any non-zero pixel data
-    const bitmap = thumb.toBitmap();
-    // A fully black 1x1 image = [0,0,0,255] (BGRA). Check if any color channel > 0
-    // But a legitimate dark screen could also be black, so just having a non-empty
-    // bitmap with sources is good enough — the key failure mode is getSources returning
-    // empty or throwing
+    // Having a non-empty thumbnail with sources is sufficient — the key failure mode
+    // is getSources returning empty or throwing
     return true;
   } catch (err) {
     console.log('[permissions] Screen capture test failed:', err);

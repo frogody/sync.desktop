@@ -185,11 +185,14 @@ async function handleDeepLink(url: string) {
 
       // SEC-007: Check auth state timeout
       if (isAuthStateExpired()) {
-        console.error('[main] Deep link auth rejected: auth state expired (>5 min)');
+        console.error('[main] Deep link auth rejected: auth state expired (>10 min)');
         setAuthState(null); // Clear expired state
         const widget = getFloatingWidget();
         if (widget) {
-          widget.webContents.send('auth:callback', { success: false, error: 'Auth state expired' });
+          widget.webContents.send('auth:callback', {
+            success: false,
+            error: 'Sign-in took too long. Please click "Sign in" again to start a fresh authentication.',
+          });
         }
         return;
       }
@@ -249,7 +252,10 @@ async function handleDeepLink(url: string) {
         // Notify renderer of auth failure
         const widget = getFloatingWidget();
         if (widget) {
-          widget.webContents.send('auth:callback', { success: false, error: 'State mismatch' });
+          widget.webContents.send('auth:callback', {
+            success: false,
+            error: 'Sign-in session expired. Please click "Sign in" again to start a fresh authentication.',
+          });
         }
       }
     } else {

@@ -117,6 +117,7 @@ export interface ElectronAPI {
     data?: { accessibility: boolean; screenCapture: boolean };
   }>;
   requestPermission: (permission: string) => Promise<{ success: boolean }>;
+  relaunchApp: () => Promise<{ success: boolean }>;
 
   // Semantic Pipeline
   getWorkContext: () => Promise<{
@@ -220,6 +221,7 @@ const electronAPI: ElectronAPI = {
   checkPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_CHECK_PERMISSIONS),
   requestPermission: (permission) =>
     ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, permission),
+  relaunchApp: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_RELAUNCH_APP),
 
   // Semantic Pipeline
   getWorkContext: () =>

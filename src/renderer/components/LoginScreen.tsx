@@ -160,30 +160,50 @@ interface LoginScreenProps {
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loginTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+    };
+  }, []);
 
   const handleLogin = async () => {
     setIsLoading(true);
     setError(null);
 
+    // Start a 4-minute timeout — if deep link callback doesn't arrive, reset
+    if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+    loginTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+      setError(
+        'Sign-in is taking too long. Make sure SYNC Desktop is allowed to handle "isyncso://" links in your browser, then try again.'
+      );
+    }, 4 * 60 * 1000);
+
     try {
       const result = await window.electron.login();
       if (!result.success) {
-        setError(result.error || 'Could not open the login page. Please check your default browser and try again.');
         setIsLoading(false);
+        if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+        setError(result.error || 'Could not open the login page. Please check your default browser and try again.');
       }
     } catch (err) {
-      setError('Something went wrong. Please check your internet connection and try again.');
       setIsLoading(false);
+      if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+      setError('Something went wrong. Please check your internet connection and try again.');
     }
   };
 
   React.useEffect(() => {
     const unsubscribe = window.electron.onAuthCallback((data) => {
+      if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
       setIsLoading(false);
       if (data.success) {
         onLoginSuccess();
       } else {
-        setError('Sign-in could not be completed. Please try again, or check your internet connection.');
+        setError(data.error || 'Sign-in could not be completed. Please try again, or check your internet connection.');
       }
     });
 
@@ -262,6 +282,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </span>
           )}
         </button>
+
+        {/* Cancel button — only shown while waiting for deep link callback */}
+        {isLoading && (
+          <button
+            onClick={() => {
+              if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+              setIsLoading(false);
+              setError(null);
+            }}
+            className="mt-2 w-full py-2 text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
 
         {/* Error */}
         <div aria-live="assertive" aria-atomic="true">
