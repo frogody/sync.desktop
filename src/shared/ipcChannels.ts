@@ -9,6 +9,7 @@ export const IPC_CHANNELS = {
   WINDOW_COLLAPSE: 'window:collapse',
   WINDOW_MOVE: 'window:move',
   WINDOW_MODE_CHANGE: 'window:mode-change',
+  WINDOW_SHOW_LOGIN: 'window:show-login',
 
   // Activity Tracking
   ACTIVITY_GET_RECENT: 'activity:get-recent',

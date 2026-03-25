@@ -6,7 +6,10 @@
 
 import Store from 'electron-store';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import os from 'os';
+import { app } from 'electron';
 import { AppSettings, DEFAULT_SETTINGS, User } from '../shared/types';
 
 // ============================================================================
@@ -68,12 +71,41 @@ function createStore(): any {
       console.log('[store] Migrated encryption key from legacy to machine-specific key');
       return migrated;
     } catch {
-      // Both keys failed — start fresh
-      console.warn('[store] Could not decrypt store with any key, starting fresh');
-      return new Store({
-        defaults: { settings: DEFAULT_SETTINGS, auth: {} },
-        encryptionKey: machineKey,
-      }) as any;
+      // Both keys failed — delete the corrupted file and start completely fresh.
+      // This handles the case where a store file from a different machine (different
+      // machineKey) or a completely corrupted file cannot be decrypted by any known key.
+      console.warn('[store] Could not decrypt store with any key, deleting and starting fresh');
+
+      // Try multiple paths to find and delete the corrupted file.
+      // app.getPath('userData') may not be available if called before app is ready.
+      const pathsToTry: string[] = [];
+      try { pathsToTry.push(path.join(app.getPath('userData'), 'config.json')); } catch { /* app not ready */ }
+      // Hardcoded macOS fallback path — matches Electron's userData convention
+      pathsToTry.push(path.join(os.homedir(), 'Library', 'Application Support', 'sync-desktop', 'config.json'));
+
+      for (const storePath of pathsToTry) {
+        try {
+          if (fs.existsSync(storePath)) {
+            fs.unlinkSync(storePath);
+            console.log('[store] Deleted corrupted store file:', storePath);
+            break;
+          }
+        } catch (deleteErr) {
+          console.error('[store] Could not delete corrupted store file at', storePath, ':', deleteErr);
+        }
+      }
+
+      // Create fresh store — wrap in try-catch in case the file is still present
+      try {
+        return new Store({
+          defaults: { settings: DEFAULT_SETTINGS, auth: {} },
+          encryptionKey: machineKey,
+        }) as any;
+      } catch (freshErr) {
+        // Last resort: create store with no encryption so it always works
+        console.error('[store] Even fresh store creation failed, using unencrypted fallback:', freshErr);
+        return new Store({ defaults: { settings: DEFAULT_SETTINGS, auth: {} } }) as any;
+      }
     }
   }
 }

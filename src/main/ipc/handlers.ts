@@ -14,6 +14,7 @@ import {
   expandToVoice,
   collapseToAvatar,
   moveWidget,
+  expandForLogin,
 } from '../windows/floatingWidget';
 import { ActivityTracker } from '../services/activityTracker';
 import {
@@ -138,6 +139,13 @@ export function setupIpcHandlers(
     } else if (mode === 'voice') {
       expandToVoice();
     }
+    return { success: true };
+  });
+
+  // Show the Electron window for login, overriding the native notch widget if active.
+  // Called when the renderer detects the user is not authenticated.
+  ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_LOGIN, () => {
+    expandForLogin();
     return { success: true };
   });
 

@@ -12,7 +12,7 @@
 import 'dotenv/config';
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
 import path from 'path';
-import { createFloatingWidget, getFloatingWidget } from './windows/floatingWidget';
+import { createFloatingWidget, getFloatingWidget, setNativeWidgetActive } from './windows/floatingWidget';
 import { createSystemTray, updateTrayMenu } from './tray/systemTray';
 import { setupIpcHandlers } from './ipc/handlers';
 import { ActivityTracker } from './services/activityTracker';
@@ -224,9 +224,13 @@ async function handleDeepLink(url: string) {
           widget.webContents.send('auth:callback', { success: true, token });
         }
 
-        // Forward auth to native notch widget
+        // Forward auth to native notch widget and hand back UI control
         if (notchBridge?.running) {
           notchBridge.sendAuthUpdate();
+          // Native widget now has auth — let it take over from the Electron login window
+          setNativeWidgetActive(true);
+          const w = getFloatingWidget();
+          if (w && !w.isDestroyed()) w.hide();
         }
 
         // Generate current hour summary and sync immediately

@@ -9,6 +9,7 @@ exports.IPC_CHANNELS = {
     // Window Management
     WINDOW_EXPAND: 'window:expand',
     WINDOW_COLLAPSE: 'window:collapse',
+    WINDOW_SHOW_LOGIN: 'window:show-login',
     WINDOW_MOVE: 'window:move',
     WINDOW_MODE_CHANGE: 'window:mode-change',
     // Activity Tracking

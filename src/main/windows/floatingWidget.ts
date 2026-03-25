@@ -31,6 +31,48 @@ export function setNativeWidgetActive(active: boolean): void {
   }
 }
 
+/**
+ * Expand the Electron window to login/chat size, bypassing the nativeWidgetActive
+ * guard. Used when auth is required even while the native notch widget is running.
+ * Temporarily disables nativeWidgetActive so the Electron window can show.
+ */
+export function expandForLogin(): void {
+  if (!floatingWidget || floatingWidget.isDestroyed()) return;
+
+  // Temporarily allow the Electron window to be shown for login
+  nativeWidgetActive = false;
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const [currentX, currentY] = floatingWidget.getPosition();
+  let newX = currentX;
+  let newY = currentY;
+
+  if (newX + CHAT_WINDOW_SIZE.width > screenWidth) {
+    newX = screenWidth - CHAT_WINDOW_SIZE.width - 20;
+  }
+  if (newY + CHAT_WINDOW_SIZE.height > screenHeight) {
+    newY = screenHeight - CHAT_WINDOW_SIZE.height - 20;
+  }
+
+  floatingWidget.hide();
+  floatingWidget.setBounds({
+    x: newX,
+    y: newY,
+    width: CHAT_WINDOW_SIZE.width,
+    height: CHAT_WINDOW_SIZE.height,
+  });
+
+  setTimeout(() => {
+    floatingWidget?.show();
+    floatingWidget?.focus();
+  }, 100);
+
+  floatingWidget.webContents.send('window:mode-change', 'chat');
+  console.log('[widget] expandForLogin: showing Electron window for auth');
+}
+
 // ============================================================================
 // Preload Path Resolution (LINK-005)
 // ============================================================================

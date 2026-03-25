@@ -15,7 +15,7 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import path from 'path';
 import { app, shell, systemPreferences } from 'electron';
 import { getAccessToken, getUser } from '../store';
-import { getFloatingWidget, setNativeWidgetActive } from '../windows/floatingWidget';
+import { getFloatingWidget, setNativeWidgetActive, expandForLogin } from '../windows/floatingWidget';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../shared/constants';
 import type { ContextEvent } from '../../deep-context/types';
 import type { DeepContextEngine } from '../../deep-context';
@@ -436,15 +436,25 @@ export class NotchBridge extends EventEmitter {
 
   private handleMessage(msg: BridgeMessage): void {
     switch (msg.type) {
-      case 'ready':
+      case 'ready': {
         console.log('[notch-bridge] SYNCWidget ready');
-        this.restartCount = 0; // Reset restart counter on successful startup
-        // Send initial config
-        this.sendAuthUpdate();
-        // Permanently suppress old BrowserWindow widget -- native notch widget takes over
-        setNativeWidgetActive(true);
-        this.hideOldWidget();
+        this.restartCount = 0;
+
+        const hasAuth = !!getAccessToken() && !!getUser();
+        if (hasAuth) {
+          // Authenticated — send config to native widget and let it take over
+          this.sendAuthUpdate();
+          setNativeWidgetActive(true);
+          this.hideOldWidget();
+          console.log('[notch-bridge] Auth present — native notch widget active');
+        } else {
+          // No auth — show Electron window for login instead of the native widget taking over.
+          // The native widget stays running (for activity tracking etc.) but doesn't own the UI.
+          expandForLogin();
+          console.log('[notch-bridge] No auth — falling back to Electron window for login');
+        }
         break;
+      }
 
       case 'widget_state':
         console.log('[notch-bridge] Widget state:', msg.payload.state);

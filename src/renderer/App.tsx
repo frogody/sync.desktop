@@ -36,7 +36,7 @@ export default function App() {
             if (perms && !perms.accessibility) {
               // Missing required permissions — show setup
               setAppState('permissions');
-              (window as any).electron.expandWindow('chat');
+              (window as any).electron.showLoginWindow();
               return;
             }
           }
@@ -44,12 +44,12 @@ export default function App() {
           (window as any).electron.collapseWindow();
         } else {
           setAppState('login');
-          (window as any).electron.expandWindow('chat');
+          (window as any).electron.showLoginWindow();
         }
       } catch (error) {
         console.error('Failed to check auth:', error);
         setAppState('login');
-        (window as any).electron.expandWindow('chat');
+        (window as any).electron.showLoginWindow();
       }
     };
 
