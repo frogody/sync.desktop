@@ -154,7 +154,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   syncIntervalMinutes: 1,
   avatarPosition: 'top-right',
   avatarSize: 'medium',
-  showInDock: false,
+  showInDock: true,
   launchAtLogin: true,
   voiceEnabled: true,
   voiceName: 'tara',

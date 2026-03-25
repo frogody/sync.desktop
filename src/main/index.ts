@@ -10,7 +10,7 @@
  */
 
 import 'dotenv/config';
-import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, protocol, shell } from 'electron';
 import path from 'path';
 import { createFloatingWidget, getFloatingWidget, setNativeWidgetActive } from './windows/floatingWidget';
 import { createSystemTray, updateTrayMenu } from './tray/systemTray';
@@ -511,9 +511,26 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Hide dock icon on macOS (we use menu bar/tray instead)
-  if (process.platform === 'darwin' && !settings.showInDock) {
-    app.dock?.hide();
+  // Set app name to "Sync" (displayed in menu bar, dock, notifications)
+  app.setName('Sync');
+
+  // Dock icon — show by default so users know the app is running
+  if (process.platform === 'darwin') {
+    if (settings.showInDock !== false) {
+      // Set the metallic teal hexagon icon
+      const dockIconPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'assets', 'icons', 'icon.png')
+        : path.join(app.getAppPath(), 'assets', 'icons', 'icon.png');
+      try {
+        const dockIcon = nativeImage.createFromPath(dockIconPath);
+        if (!dockIcon.isEmpty()) {
+          app.dock?.setIcon(dockIcon);
+        }
+      } catch { /* icon loading is non-critical */ }
+      app.dock?.show();
+    } else {
+      app.dock?.hide();
+    }
   }
 
   // Initialize auto-updater (only in production)

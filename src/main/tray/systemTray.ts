@@ -38,14 +38,27 @@ export function createSystemTray(): Tray {
     ? path.join(process.resourcesPath, 'assets', 'tray', 'trayTemplate.png')
     : path.join(app.getAppPath(), 'assets', 'tray', 'trayTemplate.png');
 
-  // Fallback bee icon (22x22 PNG, base64-encoded) used when the template PNG is missing or empty.
-  // Generated via Python PIL: yellow body, black stripes, translucent wings, stinger.
+  // Fallback bee icon (22x22 PNG, base64-encoded) — metallic teal/cyan bee.
   const BEE_ICON_B64 =
-    'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAA9UlEQVR4nO2UvRHCIBSAH569DRQOoa2N' +
-    'Nm6QCXCHZIxkhzgBG9iksnUJC2icAA9PvMc/sfT8mkB47+PdgwPgzxsClVBKtR0rpYp5QcB4072dn7ak' +
-    '86W+PBbviEcUgOmOrJVSXhljOzPH4/4ih1iO2SDY1YdvYB/8BAAjT4kNi9SCxVZnvngMBbJi/iCtFMoR' +
-    'fVoi1Gt9tpijJCPB4HlKHj08nqkkxXmlB3x4SzwBtAFr6L1WKoVaY4dTMUZPoOeKycF1FW/Ft/yImHj9' +
-    'KhGLzwr0BMHjU1tEthWkUHluvdhjgpJZQ6s3rca8ybF3OUXVrcDCWvkTAXhc7NkII28AAAAASUVORK5CYII=';
+    'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAEFElEQVR4nNWTW2gcVRjHzzlz25nZnb1v' +
+    'NpdNzCYsaatNkRZShfoiKkiR+iAKXmi8ElGbl774oj6KVpEi+iAWoVJCQRCfBBWx1EKR0jYpidakTpLd' +
+    '7G6yt5nduZ5z5CzNkmRTC4IP/mFg+L7//8c538cB4A46emGGsu/f9hH4j8Rv/qjJuKQk43Lu+WOHVn/8' +
+    'tVK5fP2cbTbFUHbwYGutvIwtuwIAIJwoKHJvKrfy/YXzSOBR6v5770OEloaffDR389x318s3fq8xHtwE' +
+    'x/aMxh86+XpWjUUlxHPKxU/PbJgbVc0VxafN2flTfrNVpBhjTpYjYkTrUcdG30DV2mklrNUnXnkuCnkO' +
+    'WA2DfHN8+vK2UWSfevxAE9E+JRkTZU2zH3z1BVmNhA0lFpXkVGJQiEb28pHwPj6oZpTcyBQobXykRiLG' +
+    'kbdejofSKUHtScosf/TCzJvbThwdG0nuPzF5ONLfKwyk+9aJ60HLNLVqvhi98sMvx72mJQMICPYxJcXy' +
+    '+4dffAbF+nurSljzkSSilbV8orZa8H5+7e1vt83YWq+0Zk9/denA9OSEFdRAIBiUeFUJWEFpj5xKZMYP' +
+    'jicAQvDm4pLR0vPvWEHpvKAF54Eo1CzT9MxS2WP5ruW5DdOGANJrH395EZ6YnOgbGvLXm0ZWv3LjsdDY' +
+    'cFSIaOpyuQTEeFjgQgq3fHXhCUGRraQaqud1PcRyrbVyqwtMfUzchuGYCKKrn5z5zZ169mEqCKrnuprr' +
+    'uPJifhVBnoOYUupZDmc3m7xRLAOTFOPzn539ySyUWiy/yessjxJCSRtu+q1aXZz7YkZ3HCeGMVFNvcBT' +
+    'TCB1fYBtF9YXljjrz7/OMt/s51/PmYWSw6As3wXuwDGGvuUE1EP7p/VL1x7RRjJyYu8oHBu+B7grRWDd' +
+    'yoNgdgCinuTUxvLaA061Dl2j6TEoy9/55VEKKYIh81Y+HuhLxbHry7nRLJJkGYwfmQDKQBoACoJSOhkx' +
+    'llYjvuOKFOP2obZiusEQcsTHPICATwym+eRwP182G5BAACqeDXpGM1xqJMPHM+m2h3kppV2czvI6IhQD' +
+    'SgklFDdqBnERh3lJ5MrF9XYbEwKI62G7brQ9zNvO3A1MGdTzan7Lqjf0Qs0yLAlJAoAQcrf7mDiu51Xr' +
+    'bQ/zssxdwYBSTF2vbs0tvAt4/pScHRSRHIgCdPu2hHjEsqvWor7CPMzLMjsxnSfdEYQcRFCAohhDQXUw' +
+    'sG/sAxRUhqAghFmbel6dNFsr9uz8NDGbOnXdCrvjTng3eCtcEGNQDgxIuZH3YEDq3QQ783+cpC1bp97u' +
+    '0DZiZ6EjNlPI4HwYCkIMSlKvkOl7yVvSPyS2U6CeVwF0d2g7vlsRbIUDgCBCAuC5ULvGduBj85+g/0/9' +
+    'DfQgRZW7XkCYAAAAAElFTkSuQmCC';
 
   let icon: Electron.NativeImage;
   try {
@@ -68,7 +81,7 @@ export function createSystemTray(): Tray {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip('SYNC Desktop');
+  tray.setToolTip('Sync');
 
   // Update context menu
   updateTrayMenu();
@@ -259,7 +272,7 @@ export function updateTrayMenu(): void {
     },
     { type: 'separator' },
     {
-      label: `SYNC Desktop v${app.getVersion()}`,
+      label: `Sync v${app.getVersion()}`,
       enabled: false,
     },
     {
@@ -283,7 +296,7 @@ export function updateTrayMenu(): void {
     },
     { type: 'separator' },
     {
-      label: 'Quit SYNC Desktop',
+      label: 'Quit Sync',
       accelerator: 'CommandOrControl+Q',
       click: () => {
         app.exit(0);
@@ -302,9 +315,9 @@ export function setTrayIcon(status: 'normal' | 'syncing' | 'error'): void {
   if (!tray) return;
 
   const tooltips = {
-    normal: 'SYNC Desktop — Running',
-    syncing: 'SYNC Desktop — Syncing your data...',
-    error: 'SYNC Desktop — Sync issue, check your connection',
+    normal: 'Sync — Running',
+    syncing: 'Sync — Syncing your data...',
+    error: 'Sync — Sync issue, check your connection',
   };
 
   tray.setToolTip(tooltips[status]);

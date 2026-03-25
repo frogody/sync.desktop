@@ -2,7 +2,7 @@
 // Application Constants
 // ============================================================================
 
-export const APP_NAME = 'SYNC Desktop';
+export const APP_NAME = 'Sync';
 export const APP_VERSION = '2.3.0';
 export const APP_PROTOCOL = 'isyncso';
 
