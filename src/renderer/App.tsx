@@ -12,8 +12,9 @@ import VoiceMode from './components/VoiceMode';
 import LoginScreen from './components/LoginScreen';
 import PermissionsSetup from './components/PermissionsSetup';
 import SemanticDashboard from './components/SemanticDashboard';
+import Settings from './components/Settings';
 
-type WidgetMode = 'avatar' | 'chat' | 'voice';
+type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings';
 type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
 
 export default function App() {
@@ -179,6 +180,10 @@ export default function App() {
 
         {mode === 'voice' && (
           <VoiceMode onClose={handleClose} />
+        )}
+
+        {mode === 'settings' && (
+          <Settings onClose={handleClose} />
         )}
       </div>
     </SyncStateProvider>

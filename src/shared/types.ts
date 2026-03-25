@@ -103,7 +103,7 @@ export interface VoiceState {
 // Window & UI Types
 // ============================================================================
 
-export type WidgetMode = 'avatar' | 'chat' | 'voice';
+export type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings';
 
 export interface WindowState {
   mode: WidgetMode;

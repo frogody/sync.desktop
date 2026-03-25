@@ -15,7 +15,7 @@ import type { AppSettings, WidgetMode } from '../shared/types';
 
 export interface ElectronAPI {
   // Window
-  expandWindow: (mode: 'chat' | 'voice') => Promise<{ success: boolean }>;
+  expandWindow: (mode: 'chat' | 'voice' | 'settings') => Promise<{ success: boolean }>;
   collapseWindow: () => Promise<{ success: boolean }>;
   showLoginWindow: () => Promise<{ success: boolean }>;
   moveWindow: (x: number, y: number) => void;

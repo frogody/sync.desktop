@@ -12,6 +12,7 @@ import {
   getFloatingWidget,
   expandToChat,
   expandToVoice,
+  expandToSettings,
   collapseToAvatar,
   moveWidget,
   expandForLogin,
@@ -129,15 +130,17 @@ export function setupIpcHandlers(
   // Window Management
   // ============================================================================
 
-  ipcMain.handle(IPC_CHANNELS.WINDOW_EXPAND, (_event, mode: 'chat' | 'voice') => {
+  ipcMain.handle(IPC_CHANNELS.WINDOW_EXPAND, (_event, mode: 'chat' | 'voice' | 'settings') => {
     // SEC-006: Validate mode parameter
-    if (mode !== 'chat' && mode !== 'voice') {
-      return { success: false, error: 'Invalid mode. Must be "chat" or "voice".' };
+    if (mode !== 'chat' && mode !== 'voice' && mode !== 'settings') {
+      return { success: false, error: 'Invalid mode. Must be "chat", "voice", or "settings".' };
     }
     if (mode === 'chat') {
       expandToChat();
     } else if (mode === 'voice') {
       expandToVoice();
+    } else if (mode === 'settings') {
+      expandToSettings();
     }
     return { success: true };
   });
@@ -414,6 +417,19 @@ export function setupIpcHandlers(
         return { success: false, error: 'Updates must be a non-null object' };
       }
       const newSettings = updateSettings(updates);
+
+      // Apply side-effects for settings that affect OS behavior
+      if ('launchAtLogin' in updates) {
+        app.setLoginItemSettings({ openAtLogin: !!updates.launchAtLogin });
+      }
+      if ('showInDock' in updates) {
+        if (updates.showInDock) {
+          app.dock?.show();
+        } else {
+          app.dock?.hide();
+        }
+      }
+
       return { success: true, data: newSettings };
     } catch (error) {
       return { success: false, error: String(error) };

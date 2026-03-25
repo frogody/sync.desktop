@@ -12,6 +12,7 @@ import {
   WIDGET_SIZES,
   CHAT_WINDOW_SIZE,
   VOICE_WINDOW_SIZE,
+  SETTINGS_WINDOW_SIZE,
 } from '../../shared/constants';
 import { WidgetMode } from '../../shared/types';
 
@@ -287,6 +288,42 @@ export function expandToVoice(): void {
   }, 100);
 
   floatingWidget.webContents.send('window:mode-change', 'voice');
+}
+
+export function expandToSettings(): void {
+  if (!floatingWidget || nativeWidgetActive) return;
+
+  currentMode = 'settings';
+
+  const [currentX, currentY] = floatingWidget.getPosition();
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  let newX = currentX;
+  let newY = currentY;
+
+  if (newX + SETTINGS_WINDOW_SIZE.width > screenWidth) {
+    newX = screenWidth - SETTINGS_WINDOW_SIZE.width - 20;
+  }
+  if (newY + SETTINGS_WINDOW_SIZE.height > screenHeight) {
+    newY = screenHeight - SETTINGS_WINDOW_SIZE.height - 20;
+  }
+
+  floatingWidget.hide();
+  floatingWidget.setBounds({
+    x: newX,
+    y: newY,
+    width: SETTINGS_WINDOW_SIZE.width,
+    height: SETTINGS_WINDOW_SIZE.height,
+  });
+
+  setTimeout(() => {
+    floatingWidget?.show();
+    floatingWidget?.focus();
+  }, 100);
+
+  floatingWidget.webContents.send('window:mode-change', 'settings');
 }
 
 export function collapseToAvatar(): void {

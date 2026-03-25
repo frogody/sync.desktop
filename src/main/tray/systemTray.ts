@@ -12,6 +12,7 @@ import {
   toggleWidget,
   expandToChat,
   expandToVoice,
+  expandToSettings,
   collapseToAvatar,
 } from '../windows/floatingWidget';
 import { WEB_APP_URL, AUTH_CALLBACK_PATH } from '../../shared/constants';
@@ -32,25 +33,38 @@ let tray: Tray | null = null;
 
 export function createSystemTray(): Tray {
   // Create tray icon — resolve path for both dev and production (packaged) builds
+  // In dev, __dirname is dist/main/tray/ — assets live at the project root (app.getAppPath())
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, 'assets', 'tray', 'trayTemplate.png')
-    : path.join(__dirname, '../../assets/tray/trayTemplate.png');
+    : path.join(app.getAppPath(), 'assets', 'tray', 'trayTemplate.png');
+
+  // Fallback bee icon (22x22 PNG, base64-encoded) used when the template PNG is missing or empty.
+  // Generated via Python PIL: yellow body, black stripes, translucent wings, stinger.
+  const BEE_ICON_B64 =
+    'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAA9UlEQVR4nO2UvRHCIBSAH569DRQOoa2N' +
+    'Nm6QCXCHZIxkhzgBG9iksnUJC2icAA9PvMc/sfT8mkB47+PdgwPgzxsClVBKtR0rpYp5QcB4072dn7ak' +
+    '86W+PBbviEcUgOmOrJVSXhljOzPH4/4ih1iO2SDY1YdvYB/8BAAjT4kNi9SCxVZnvngMBbJi/iCtFMoR' +
+    'fVoi1Gt9tpijJCPB4HlKHj08nqkkxXmlB3x4SzwBtAFr6L1WKoVaY4dTMUZPoOeKycF1FW/Ft/yImHj9' +
+    'KhGLzwr0BMHjU1tEthWkUHluvdhjgpJZQ6s3rca8ybF3OUXVrcDCWvkTAXhc7NkII28AAAAASUVORK5CYII=';
 
   let icon: Electron.NativeImage;
   try {
     icon = nativeImage.createFromPath(iconPath);
     if (icon.isEmpty()) {
-      console.warn('[tray] Tray icon loaded but is empty:', iconPath);
-      icon = nativeImage.createEmpty();
+      console.warn('[tray] Tray icon empty, using built-in bee icon:', iconPath);
+      icon = nativeImage.createFromDataURL(`data:image/png;base64,${BEE_ICON_B64}`);
     }
   } catch {
-    console.warn('[tray] Could not load tray icon from:', iconPath);
-    icon = nativeImage.createEmpty();
+    console.warn('[tray] Could not load tray icon, using built-in bee icon:', iconPath);
+    icon = nativeImage.createFromDataURL(`data:image/png;base64,${BEE_ICON_B64}`);
   }
 
-  // On macOS, use template image for automatic dark/light mode
+  // On macOS, template images automatically adapt to dark/light mode.
+  // The bee icon is coloured (not purely black/white), so do NOT set template mode —
+  // that would make it invisible in dark mode by applying a monochrome mask.
+  // Instead keep it as-is; macOS will render it at the correct size.
   if (process.platform === 'darwin') {
-    icon.setTemplateImage(true);
+    icon.setTemplateImage(false);
   }
 
   tray = new Tray(icon);
@@ -236,7 +250,11 @@ export function updateTrayMenu(): void {
     {
       label: 'Settings',
       click: () => {
-        shell.openExternal(`${WEB_APP_URL}/Integrations`);
+        const widget = getFloatingWidget();
+        if (widget) {
+          widget.show();
+          expandToSettings();
+        }
       },
     },
     { type: 'separator' },

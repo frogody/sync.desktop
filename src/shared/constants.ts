@@ -36,6 +36,11 @@ export const VOICE_WINDOW_SIZE = {
   height: 400,
 };
 
+export const SETTINGS_WINDOW_SIZE = {
+  width: 380,
+  height: 480,
+};
+
 // ============================================================================
 // Activity Tracking Configuration
 // ============================================================================
