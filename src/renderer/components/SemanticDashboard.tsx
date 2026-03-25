@@ -33,8 +33,8 @@ interface SemanticDashboardProps {
 }
 
 const ACTIVITY_COLORS: Record<string, string> = {
-  BUILDING: 'bg-blue-500',
-  INVESTIGATING: 'bg-purple-500',
+  BUILDING: 'bg-sync-teal',
+  INVESTIGATING: 'bg-sync-cyan',
   COMMUNICATING: 'bg-cyan-500',
   ORGANIZING: 'bg-amber-500',
   OPERATING: 'bg-green-500',
@@ -42,8 +42,8 @@ const ACTIVITY_COLORS: Record<string, string> = {
 };
 
 const ACTIVITY_TEXT_COLORS: Record<string, string> = {
-  BUILDING: 'text-blue-400',
-  INVESTIGATING: 'text-purple-400',
+  BUILDING: 'text-sync-teal-light',
+  INVESTIGATING: 'text-sync-cyan',
   COMMUNICATING: 'text-cyan-400',
   ORGANIZING: 'text-amber-400',
   OPERATING: 'text-green-400',
@@ -263,13 +263,13 @@ function OverviewTab({ workContext }: { workContext: WorkContext }) {
             </p>
             <div className="flex flex-wrap gap-1.5">
               {currentIntent && (
-                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full">
+                <span className="px-2 py-0.5 bg-sync-teal/20 text-sync-teal-light text-[10px] rounded-full">
                   {currentIntent.intentType}
                   {currentIntent.intentSubtype ? ` / ${currentIntent.intentSubtype}` : ''}
                 </span>
               )}
               {currentThread.primaryActivityType && (
-                <span className={`px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded-full`}>
+                <span className={`px-2 py-0.5 bg-sync-cyan/20 text-sync-cyan text-[10px] rounded-full`}>
                   {formatActivityType(currentThread.primaryActivityType)}
                 </span>
               )}

@@ -7,9 +7,12 @@ export default {
     extend: {
       colors: {
         sync: {
-          blue: '#3B82F6',
-          purple: '#8B5CF6',
+          teal: '#2A9D8F',
+          'teal-light': '#3DBFAE',
+          'teal-dark': '#1F7A6E',
           cyan: '#06B6D4',
+          honey: '#D4A843',
+          'honey-dark': '#B8922E',
         },
       },
       animation: {
@@ -18,8 +21,8 @@ export default {
       },
       keyframes: {
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)' },
-          '50%': { boxShadow: '0 0 40px rgba(139, 92, 246, 0.8)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(42, 157, 143, 0.5)' },
+          '50%': { boxShadow: '0 0 40px rgba(6, 182, 212, 0.7)' },
         },
         'float': {
           '0%, 100%': { transform: 'translateY(0)' },

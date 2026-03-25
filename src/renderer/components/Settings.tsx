@@ -130,7 +130,7 @@ export default function Settings({ onClose }: SettingsProps) {
             onClick={() => setActiveSection(s.id)}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
               activeSection === s.id
-                ? 'text-white border-b-2 border-purple-500'
+                ? 'text-white border-b-2 border-sync-teal'
                 : 'text-white/40 hover:text-white/70'
             }`}
           >
@@ -230,11 +230,11 @@ export default function Settings({ onClose }: SettingsProps) {
             <div className="pt-2 space-y-2">
               <ExternalLink
                 label="Open Web App"
-                url="https://app.isyncso.com"
+                url="https://app.hyve.com"
               />
               <ExternalLink
                 label="Privacy Policy"
-                url="https://app.isyncso.com/privacy"
+                url="https://app.hyve.com/privacy"
               />
             </div>
           </div>
@@ -250,7 +250,7 @@ export default function Settings({ onClose }: SettingsProps) {
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg text-xs font-medium text-white transition-colors"
+            className="px-4 py-1.5 bg-sync-teal hover:bg-sync-teal-light disabled:opacity-50 rounded-lg text-xs font-medium text-white transition-colors"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
@@ -286,7 +286,7 @@ function Toggle({
         role="switch"
         aria-checked={value}
         className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
-          value ? 'bg-purple-600' : 'bg-white/20'
+          value ? 'bg-sync-teal' : 'bg-white/20'
         }`}
       >
         <span
@@ -321,7 +321,7 @@ function Select({
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="bg-white/10 border border-white/20 text-white/90 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-purple-500 cursor-pointer"
+        className="bg-white/10 border border-white/20 text-white/90 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-sync-teal cursor-pointer"
       >
         {options.map(o => (
           <option key={o.value} value={o.value} className="bg-[#1a1a1a]">
@@ -347,7 +347,7 @@ function ExternalLink({ label, url }: { label: string; url: string }) {
   return (
     <button
       onClick={open}
-      className="w-full text-left text-sm text-purple-400 hover:text-purple-300 transition-colors py-1"
+      className="w-full text-left text-sm text-sync-teal-light hover:text-sync-teal transition-colors py-1"
     >
       {label} ↗
     </button>

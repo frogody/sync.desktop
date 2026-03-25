@@ -512,7 +512,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       {/* Skip to main content link for keyboard users */}
       <a
         href="#chat-input"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-3 focus:py-1 focus:bg-cyan-500 focus:text-white focus:rounded-lg focus:text-sm"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-3 focus:py-1 focus:bg-sync-teal focus:text-white focus:rounded-lg focus:text-sm"
         onClick={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
       >
         Skip to message input
@@ -602,9 +602,9 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3" role="log" aria-live="polite" aria-label="Chat messages">
         {/* Login Banner */}
         {isAuthenticated === false && (
-          <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl p-4 border border-cyan-500/20">
+          <div className="bg-gradient-to-r from-sync-teal/10 to-sync-cyan/10 rounded-xl p-4 border border-sync-teal/20">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center" style={{ clipPath: 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)', background: 'linear-gradient(to right, #06b6d4, #3b82f6)' }}>
+              <div className="w-10 h-10 flex items-center justify-center" style={{ clipPath: 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)', background: 'linear-gradient(to right, #2A9D8F, #06B6D4)' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -618,7 +618,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             <button
               onClick={handleLogin}
               disabled={isLoggingIn}
-              className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-medium rounded-xl hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50"
+              className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-sync-teal to-sync-cyan text-white text-sm font-medium rounded-xl hover:from-sync-teal-light hover:to-sync-cyan transition-all disabled:opacity-50"
             >
               {isLoggingIn ? (
                 <span className="flex items-center justify-center gap-2">
@@ -629,7 +629,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
                   Opening browser...
                 </span>
               ) : (
-                'Sign in with iSyncSO'
+                'Sign in with Hyve'
               )}
             </button>
           </div>
@@ -675,7 +675,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
                         `https://app.isyncso.com${msg.actionExecuted!.redirectUrl}`
                       )
                     }
-                    className="text-cyan-400 text-xs hover:underline focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
+                    className="text-sync-teal-light text-xs hover:underline focus-visible:ring-2 focus-visible:ring-sync-teal focus-visible:outline-none rounded"
                   >
                     View in app →
                   </button>
@@ -736,7 +736,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
               aria-label="Send message"
               className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${
                 input.trim()
-                  ? 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/20'
+                  ? 'bg-sync-teal hover:bg-sync-teal-light text-white shadow-lg shadow-sync-teal/20'
                   : 'bg-zinc-800 text-zinc-500'
               }`}
             >

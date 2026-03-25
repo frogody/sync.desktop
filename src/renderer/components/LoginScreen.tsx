@@ -116,7 +116,7 @@ const FEATURES = [
   { icon: 'activity', label: 'Deep context awareness' },
   { icon: 'shield',   label: 'AES-256 encrypted, privacy-first' },
   { icon: 'zap',      label: 'Commitment & context detection' },
-  { icon: 'sync',     label: 'Syncs with your iSyncSO workspace' },
+  { icon: 'sync',     label: 'Syncs with your Hyve workspace' },
 ];
 
 function FeatureIcon({ type }: { type: string }) {
@@ -214,9 +214,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     <div className="h-full w-full flex flex-col items-center justify-center bg-black relative overflow-hidden">
       {/* Background gradient orbs */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-[15%] left-[10%] w-48 h-48 bg-cyan-500/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-[20%] right-[10%] w-56 h-56 bg-blue-500/8 rounded-full blur-3xl" />
-        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-[15%] left-[10%] w-48 h-48 bg-sync-teal/[0.08] rounded-full blur-3xl" />
+        <div className="absolute bottom-[20%] right-[10%] w-56 h-56 bg-sync-cyan/[0.08] rounded-full blur-3xl" />
+        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-sync-honey/[0.05] rounded-full blur-3xl" />
       </div>
 
       <div className="relative z-10 flex flex-col items-center px-6 w-full max-w-[320px]">
@@ -229,7 +229,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               className="absolute inset-0"
               style={{
                 clipPath: HEX_CLIP,
-                background: 'radial-gradient(circle, rgba(6,182,212,0.15) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(42,157,143,0.15) 0%, transparent 70%)',
               }}
             />
             {/* Center "S" */}
@@ -238,7 +238,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
           </div>
 
-          <h1 className="text-xl font-semibold text-white mb-1">SYNC Desktop</h1>
+          <h1 className="text-xl font-semibold text-white mb-1">Hyve Desktop</h1>
           <p className="text-white/60 text-xs leading-relaxed">
             Your AI assistant that understands<br />what you're working on
           </p>
@@ -248,7 +248,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         <button
           onClick={handleLogin}
           disabled={isLoading}
-          className="w-full py-2.5 px-5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-medium rounded-xl hover:from-cyan-400 hover:to-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none"
+          className="w-full py-2.5 px-5 bg-gradient-to-r from-sync-teal to-sync-cyan text-white text-sm font-medium rounded-xl hover:from-sync-teal-light hover:to-sync-cyan transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-sync-teal/20 focus-visible:ring-2 focus-visible:ring-sync-teal-light focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none"
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -278,7 +278,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <polyline points="10 17 15 12 10 7" />
                 <line x1="15" y1="12" x2="3" y2="12" />
               </svg>
-              Sign in with iSyncSO
+              Sign in with Hyve
             </span>
           )}
         </button>
@@ -309,7 +309,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <div className="space-y-2">
             {FEATURES.map((f) => (
               <div key={f.label} className="flex items-center gap-2.5 text-white/60">
-                <div className="text-cyan-400/70">
+                <div className="text-sync-teal/70">
                   <FeatureIcon type={f.icon} />
                 </div>
                 <span className="text-[11px]">{f.label}</span>
@@ -320,7 +320,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         {/* Footer */}
         <p className="mt-4 text-white/50 text-[10px] text-center">
-          Secure authentication via app.isyncso.com
+          Secure authentication via app.hyve.com
         </p>
       </div>
     </div>

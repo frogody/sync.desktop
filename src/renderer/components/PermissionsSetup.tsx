@@ -288,7 +288,7 @@ export default function PermissionsSetup({ onComplete }: Props) {
               </p>
               <button
                 onClick={handleContinue}
-                className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium text-sm hover:opacity-90 transition-opacity"
+                className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-sync-teal to-sync-cyan text-white font-medium text-sm hover:opacity-90 transition-opacity"
               >
                 Start Now
               </button>
@@ -296,7 +296,7 @@ export default function PermissionsSetup({ onComplete }: Props) {
           ) : (
             <button
               onClick={handleContinue}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium text-sm hover:opacity-90 transition-opacity"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sync-teal to-sync-cyan text-white font-medium text-sm hover:opacity-90 transition-opacity"
             >
               All Set — Start SYNC
             </button>

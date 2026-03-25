@@ -319,7 +319,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       {/* Header */}
       <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-sync-cyan to-sync-purple animate-pulse" />
+          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-sync-teal to-sync-cyan animate-pulse" />
           <span className="text-white font-medium text-sm">Voice Mode</span>
           {activityContext?.currentApp && (
             <span className="text-white/60 text-xs ml-2">
@@ -347,7 +347,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           )}
 
           {state === 'processing' && (
-            <div className="w-16 h-16 border-4 border-sync-purple border-t-transparent rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-sync-teal border-t-transparent rounded-full animate-spin" />
           )}
 
           {state === 'speaking' && (
@@ -357,7 +357,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                   key={i}
                   className="voice-bar"
                   style={{
-                    background: 'linear-gradient(to top, #06B6D4, #8B5CF6)',
+                    background: 'linear-gradient(to top, #2A9D8F, #06B6D4)',
                   }}
                 />
               ))}
@@ -368,9 +368,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
             <button
               onClick={startListening}
               aria-label="Start recording"
-              className="w-20 h-20 rounded-full bg-gradient-to-r from-sync-blue to-sync-purple
+              className="w-20 h-20 rounded-full bg-gradient-to-r from-sync-teal to-sync-cyan
                          flex items-center justify-center hover:scale-105 active:scale-95
-                         transition-transform shadow-lg shadow-sync-blue/30"
+                         transition-transform shadow-lg shadow-sync-teal/30"
             >
               <svg
                 width="32"

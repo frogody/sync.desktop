@@ -7,10 +7,12 @@
    ============================================================================ */
 
 :root {
-  --sync-blue: #3B82F6;
-  --sync-purple: #8B5CF6;
+  --sync-teal: #2A9D8F;
+  --sync-teal-light: #3DBFAE;
+  --sync-teal-dark: #1F7A6E;
   --sync-cyan: #06B6D4;
-  --sync-glow: rgba(59, 130, 246, 0.5);
+  --sync-honey: #D4A843;
+  --sync-glow: rgba(42, 157, 143, 0.5);
 }
 
 * {
@@ -98,10 +100,10 @@ body {
 
 @keyframes avatar-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 15px var(--sync-blue));
+    filter: drop-shadow(0 0 15px var(--sync-teal));
   }
   50% {
-    filter: drop-shadow(0 0 25px var(--sync-purple));
+    filter: drop-shadow(0 0 25px var(--sync-cyan));
   }
 }
 
@@ -112,11 +114,11 @@ body {
   }
   25% {
     transform: scale(1.02);
-    filter: drop-shadow(0 0 30px var(--sync-blue));
+    filter: drop-shadow(0 0 30px var(--sync-teal));
   }
   50% {
     transform: scale(1);
-    filter: drop-shadow(0 0 25px var(--sync-purple));
+    filter: drop-shadow(0 0 25px var(--sync-teal-light));
   }
   75% {
     transform: scale(1.01);
@@ -137,16 +139,16 @@ body {
 
 @keyframes avatar-thinking {
   0% {
-    filter: drop-shadow(0 0 15px var(--sync-blue));
+    filter: drop-shadow(0 0 15px var(--sync-teal));
   }
   33% {
-    filter: drop-shadow(0 0 20px var(--sync-purple));
+    filter: drop-shadow(0 0 20px var(--sync-teal-light));
   }
   66% {
     filter: drop-shadow(0 0 20px var(--sync-cyan));
   }
   100% {
-    filter: drop-shadow(0 0 15px var(--sync-blue));
+    filter: drop-shadow(0 0 15px var(--sync-teal));
   }
 }
 
@@ -173,7 +175,7 @@ body {
 .chat-input {
   @apply rounded-xl px-4 py-3;
   @apply text-white placeholder-zinc-500;
-  @apply focus:outline-none focus:border-cyan-500/70 focus:ring-2 focus:ring-cyan-500/40;
+  @apply focus:outline-none focus:border-sync-teal/70 focus:ring-2 focus:ring-sync-teal/40;
   @apply transition-all duration-200;
   background: rgba(39, 39, 42, 0.5); /* zinc-800/50 */
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -181,7 +183,7 @@ body {
 
 .chat-input:focus {
   background: rgba(39, 39, 42, 0.7);
-  border-color: rgba(6, 182, 212, 0.5); /* cyan-500/50 */
+  border-color: rgba(42, 157, 143, 0.5); /* teal/50 */
 }
 
 /* ============================================================================
@@ -189,11 +191,11 @@ body {
    ============================================================================ */
 
 .btn-primary {
-  @apply bg-gradient-to-r from-cyan-500 to-blue-500;
+  @apply bg-gradient-to-r from-sync-teal to-sync-cyan;
   @apply text-white font-medium rounded-xl px-4 py-2;
   @apply hover:opacity-90 active:scale-95;
   @apply transition-all duration-200;
-  @apply shadow-lg shadow-cyan-500/20;
+  @apply shadow-lg shadow-sync-teal/20;
 }
 
 .btn-ghost {
@@ -209,7 +211,7 @@ body {
 .message-user {
   @apply text-white rounded-2xl px-4 py-3;
   @apply max-w-[80%] ml-auto;
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(59, 130, 246, 0.9));
+  background: linear-gradient(135deg, rgba(42, 157, 143, 0.9), rgba(6, 182, 212, 0.9));
 }
 
 .message-assistant {
@@ -233,7 +235,7 @@ body {
 
 .voice-bar {
   width: 4px;
-  background: linear-gradient(to top, var(--sync-blue), var(--sync-purple));
+  background: linear-gradient(to top, var(--sync-teal), var(--sync-cyan));
   border-radius: 2px;
   animation: voice-bar 0.8s ease-in-out infinite;
 }
@@ -277,7 +279,7 @@ body {
   @apply rounded-full bg-white/10 text-white/60;
   @apply hover:bg-white/20 hover:text-white;
   @apply transition-all duration-200 cursor-pointer;
-  @apply focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none;
+  @apply focus-visible:ring-2 focus-visible:ring-sync-teal focus-visible:outline-none;
   -webkit-app-region: no-drag;
 }
 

@@ -253,7 +253,7 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         vx: (rand(i + 11) - 0.5) * 0.12,
         vy: (rand(i + 17) - 0.5) * 0.12,
         s: 0.5 + rand(i + 23) * 0.7,
-        hue: rand(i + 31) * 60 + 250, // Purple-ish hue variation
+        hue: rand(i + 31) * 40 + 160, // Teal-ish hue variation
       };
     });
   }, [size, innerR, r]);
@@ -316,11 +316,11 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
       ctx.closePath();
       ctx.clip();
 
-      // Purple gradient - intensity based on level
+      // Teal gradient - intensity based on level
       const g = ctx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, innerR);
       const baseAlpha = 0.3 + intensity * 0.4;
-      g.addColorStop(0, `rgba(168,85,247,${baseAlpha})`);
-      g.addColorStop(0.5, `rgba(139,92,246,${baseAlpha * 0.6})`);
+      g.addColorStop(0, `rgba(42,157,143,${baseAlpha})`);
+      g.addColorStop(0.5, `rgba(6,182,212,${baseAlpha * 0.6})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size, size);
@@ -399,8 +399,8 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
 
   // Get active agent color for glow
   const activeAgentColor = activeAgent
-    ? AGENT_SEGMENTS.find((s) => s.id === activeAgent)?.color || '#a855f7'
-    : '#a855f7';
+    ? AGENT_SEGMENTS.find((s) => s.id === activeAgent)?.color || '#2A9D8F'
+    : '#2A9D8F';
 
   return (
     <div
