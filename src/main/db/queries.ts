@@ -481,7 +481,31 @@ export function cleanupOldData(retentionDays: number = 30): void {
     WHERE hour_start < ? AND synced = 1
   `).run(cutoff);
 
+  // Data retention cleanup for large tables with specific retention periods
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // context_events: 90-day retention
+  const contextEventsCutoff = Date.now() - 90 * DAY_MS;
+  const contextEventsDeleted = db.prepare(`
+    DELETE FROM context_events WHERE timestamp < ?
+  `).run(contextEventsCutoff);
+
+  // screen_captures: 90-day retention
+  const screenCapturesCutoff = Date.now() - 90 * DAY_MS;
+  const screenCapturesDeleted = db.prepare(`
+    DELETE FROM screen_captures WHERE timestamp < ?
+  `).run(screenCapturesCutoff);
+
+  // activity_logs: 180-day hard retention (regardless of sync status)
+  const activityLogsCutoff = Date.now() - 180 * DAY_MS;
+  const activityLogsDeleted = db.prepare(`
+    DELETE FROM activity_logs WHERE timestamp < ?
+  `).run(activityLogsCutoff);
+
   console.log('[db] Cleaned up data older than', retentionDays, 'days');
+  console.log('[db] Retention cleanup — context_events:', contextEventsDeleted.changes,
+    'screen_captures:', screenCapturesDeleted.changes,
+    'activity_logs (180d):', activityLogsDeleted.changes);
 }
 
 // ============================================================================

@@ -32,6 +32,17 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup: abort any in-flight fetch when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   // Fetch activity context on mount and periodically
   useEffect(() => {
@@ -139,6 +150,12 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         const authResult = await window.electron.getAuthStatus();
         const accessToken = authResult.data?.accessToken;
 
+        // Abort any previous request
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+
         // Call sync-voice API with rich context
         const response = await fetch(`${SUPABASE_URL}/functions/v1/sync-voice`, {
           method: 'POST',
@@ -159,6 +176,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
               recentApps: detailedContext?.recentApps?.slice(0, 5) || [],
             },
           }),
+          signal: abortControllerRef.current.signal,
         });
 
         if (!response.ok) {
@@ -189,6 +207,11 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           setState('idle');
         }
       } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          console.log('[VoiceMode] Request aborted');
+          setState('idle');
+          return;
+        }
         console.error('Voice processing error:', error);
         const errMsg = (error as Error).message;
         if (errMsg === 'AUTH_ERROR') {
@@ -317,10 +340,10 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   return (
     <div ref={containerRef} className="flex flex-col h-full">
       {/* Header */}
-      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10">
+      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-sync-teal/20 bg-gradient-to-r from-zinc-900 via-zinc-900 to-sync-teal/[0.06]">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gradient-to-r from-sync-teal to-sync-cyan animate-pulse" />
-          <span className="text-white font-medium text-sm">Voice Mode</span>
+          <span className="font-medium text-sm"><span className="text-sync-teal">Hyve</span> <span className="text-white/60">Voice</span></span>
           {activityContext?.currentApp && (
             <span className="text-white/60 text-xs ml-2">
               • {activityContext.currentApp}

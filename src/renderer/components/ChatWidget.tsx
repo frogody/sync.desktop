@@ -91,6 +91,16 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
     inputRef.current?.focus();
   }, []);
 
+  // Cleanup: abort any in-flight fetch when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // Focus trap: keep Tab within the chat widget
   useEffect(() => {
     const container = containerRef.current;
@@ -519,14 +529,14 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       </a>
       {/* Update notification banner */}
       <UpdateBanner />
-      {/* Header - Matches web app styling */}
-      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10 bg-zinc-900/80">
+      {/* Header - Hyve teal branding */}
+      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-sync-teal/20 bg-gradient-to-r from-zinc-900 via-zinc-900 to-sync-teal/[0.06]">
         <div className="flex items-center gap-3">
           {/* SYNC Avatar - Animated colorful ring */}
           <SyncAvatarMini size={40} />
           <div>
-            <h1 className="font-semibold text-white text-sm">SYNC</h1>
-            <p className="text-xs text-zinc-400">AI Assistant</p>
+            <h1 className="font-semibold text-sm"><span className="text-sync-teal">Hyve</span> <span className="text-white/60">SYNC</span></h1>
+            <p className="text-xs text-sync-honey/60">AI Assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -642,7 +652,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
             </div>
             <h2 className="text-lg font-medium text-white mb-2">Hey! How can I help?</h2>
             <p className="text-sm text-zinc-400 mb-4 max-w-sm">
-              I can help with invoices, products, prospects, and more. Just ask!
+              Your <span className="text-sync-teal">Hyve</span> AI assistant — invoices, products, prospects, and more.
             </p>
             {activityContext && !activityContext.isIdle && activityContext.currentApp && (
               <p className="text-xs text-zinc-400">
@@ -705,7 +715,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
       </div>
 
       {/* Input - Matches web app styling */}
-      <div className="p-4 border-t border-white/10 bg-zinc-900/80">
+      <div className="p-4 border-t border-sync-teal/15 bg-zinc-900/80">
         <div className="flex items-end gap-2">
           <input
             ref={inputRef}

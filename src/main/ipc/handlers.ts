@@ -7,7 +7,7 @@
 import { ipcMain, shell, app } from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipcChannels';
 import { AppSettings } from '../../shared/types';
-import { WEB_APP_URL, AUTH_CALLBACK_PATH } from '../../shared/constants';
+import { WEB_APP_URL, AUTH_CALLBACK_PATH, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../shared/constants';
 import {
   getFloatingWidget,
   expandToChat,
@@ -54,10 +54,6 @@ import {
   getTogetherApiKey,
   setTogetherApiKey,
 } from '../store';
-
-// Supabase config for fetching user info
-const SUPABASE_URL = 'https://sfxpmzicgpaxfntqleig.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmeHBtemljZ3BheGZudHFsZWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2MDY0NjIsImV4cCI6MjA4MjE4MjQ2Mn0.337ohi8A4zu_6Hl1LpcPaWP8UkI5E4Om7ZgeU9_A8t4';
 
 // Fetch user info from Supabase (used when token exists but user is missing)
 async function fetchUserInfo(accessToken: string) {
@@ -746,6 +742,21 @@ export function setupIpcHandlers(
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  });
+
+  // ============================================================================
+  // Health Check (INF-009)
+  // ============================================================================
+
+  ipcMain.handle(IPC_CHANNELS.HEALTH_CHECK, () => {
+    return {
+      success: true,
+      data: {
+        status: 'healthy',
+        uptime: process.uptime(),
+        timestamp: Date.now(),
+      },
+    };
   });
 
   console.log('[ipc] Handlers registered');

@@ -10,6 +10,19 @@
  */
 
 import 'dotenv/config';
+
+// ============================================================================
+// Global Error Handlers — catch unhandled errors without crashing the app
+// ============================================================================
+
+process.on('uncaughtException', (error) => {
+  console.error('[main] Uncaught exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] Unhandled rejection:', reason);
+});
+
 import { app, BrowserWindow, ipcMain, nativeImage, protocol, shell } from 'electron';
 import path from 'path';
 import { createFloatingWidget, getFloatingWidget, setNativeWidgetActive } from './windows/floatingWidget';
@@ -29,7 +42,7 @@ import { NotchBridge } from './services/notchBridge';
 import { ActionService } from './services/actionService';
 import { EntityRegistry, SemanticProcessor, ThreadManager, IntentClassifier, SignatureComputer } from './services/semantic';
 import { initDatabase } from './db/database';
-import { APP_PROTOCOL, WEB_APP_URL } from '../shared/constants';
+import { APP_PROTOCOL, WEB_APP_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../shared/constants';
 import {
   store,
   StoreSchema,
@@ -94,9 +107,6 @@ if (!gotTheLock) {
 // ============================================================================
 // Deep Link Protocol Handler
 // ============================================================================
-
-const SUPABASE_URL = 'https://sfxpmzicgpaxfntqleig.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmeHBtemljZ3BheGZudHFsZWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2MDY0NjIsImV4cCI6MjA4MjE4MjQ2Mn0.337ohi8A4zu_6Hl1LpcPaWP8UkI5E4Om7ZgeU9_A8t4';
 
 // Re-export refreshAccessToken for backward compatibility
 export { refreshAccessToken } from './services/authUtils';
@@ -306,6 +316,7 @@ app.whenReady().then(async () => {
 
   // Initialize services
   const settings = getSettings();
+  console.log('[main] showInDock =', settings.showInDock);
 
   // Check permissions on macOS (non-blocking, just logs status)
   const permissions = await checkAndRequestPermissions();
@@ -514,9 +525,9 @@ app.whenReady().then(async () => {
   // Set app name to "Sync" (displayed in menu bar, dock, notifications)
   app.setName('Sync');
 
-  // Dock icon — show by default so users know the app is running
+  // Dock icon — always show with the Hyve bee icon
   if (process.platform === 'darwin') {
-    if (settings.showInDock !== false) {
+    if (true) { // Always show; user can toggle later via settings
       // Set the metallic teal hexagon icon
       const dockIconPath = app.isPackaged
         ? path.join(process.resourcesPath, 'assets', 'icons', 'icon.png')
@@ -525,8 +536,13 @@ app.whenReady().then(async () => {
         const dockIcon = nativeImage.createFromPath(dockIconPath);
         if (!dockIcon.isEmpty()) {
           app.dock?.setIcon(dockIcon);
+          console.log('[dock] Icon set from:', dockIconPath);
+        } else {
+          console.warn('[dock] Icon empty at:', dockIconPath);
         }
-      } catch { /* icon loading is non-critical */ }
+      } catch (e) {
+        console.warn('[dock] Icon load failed:', e);
+      }
       app.dock?.show();
     } else {
       app.dock?.hide();
