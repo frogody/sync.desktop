@@ -212,11 +212,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center bg-black relative overflow-hidden">
-      {/* Background gradient orbs */}
+      {/* Background gradient orbs — teal + honey glow */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-[15%] left-[10%] w-48 h-48 bg-sync-teal/[0.08] rounded-full blur-3xl" />
-        <div className="absolute bottom-[20%] right-[10%] w-56 h-56 bg-sync-cyan/[0.08] rounded-full blur-3xl" />
-        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-sync-honey/[0.05] rounded-full blur-3xl" />
+        <div className="absolute top-[10%] left-[5%] w-56 h-56 bg-sync-teal/[0.12] rounded-full blur-3xl" />
+        <div className="absolute bottom-[15%] right-[5%] w-64 h-64 bg-sync-teal-dark/[0.10] rounded-full blur-3xl" />
+        <div className="absolute top-[45%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-sync-honey/[0.06] rounded-full blur-3xl" />
+        <div className="absolute top-[70%] left-[30%] w-32 h-32 bg-sync-cyan/[0.06] rounded-full blur-2xl" />
       </div>
 
       <div className="relative z-10 flex flex-col items-center px-6 w-full max-w-[320px]">
@@ -239,7 +240,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
 
           <h1 className="text-xl font-semibold text-white mb-1">Hyve Desktop</h1>
-          <p className="text-white/60 text-xs leading-relaxed">
+          <p className="text-sync-teal-light/60 text-xs leading-relaxed">
             Your AI assistant that understands<br />what you're working on
           </p>
         </div>
@@ -305,7 +306,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </div>
 
         {/* Features */}
-        <div className="mt-6 w-full p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+        <div className="mt-6 w-full p-3 rounded-xl bg-sync-teal/[0.04] border border-sync-teal/[0.12]">
           <div className="space-y-2">
             {FEATURES.map((f) => (
               <div key={f.label} className="flex items-center gap-2.5 text-white/60">
@@ -320,7 +321,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         {/* Footer */}
         <p className="mt-4 text-white/50 text-[10px] text-center">
-          Secure authentication via app.hyve.com
+          Secure authentication via app.isyncso.com
         </p>
       </div>
     </div>

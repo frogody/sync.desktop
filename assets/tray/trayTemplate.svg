@@ -1,5 +1,154 @@
-<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="8" cy="8" r="6" fill="currentColor"/>
-  <circle cx="8" cy="8" r="3" fill="white" fill-opacity="0.3"/>
-  <circle cx="6.5" cy="6.5" r="1.5" fill="white" fill-opacity="0.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Dark Metal Gradients -->
+    <radialGradient id="headMetal" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#666" />
+      <stop offset="30%" stop-color="#333" />
+      <stop offset="80%" stop-color="#111" />
+      <stop offset="100%" stop-color="#050505" />
+    </radialGradient>
+    
+    <linearGradient id="bodyDarkMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#333" />
+      <stop offset="50%" stop-color="#111" />
+      <stop offset="100%" stop-color="#000" />
+    </linearGradient>
+
+    <!-- Silver/White Metal Stripe Gradient -->
+    <linearGradient id="silverMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF" />
+      <stop offset="25%" stop-color="#E0E0E0" />
+      <stop offset="50%" stop-color="#999" />
+      <stop offset="75%" stop-color="#CCC" />
+      <stop offset="100%" stop-color="#FFF" />
+    </linearGradient>
+    
+    <!-- Antenna Highlight -->
+    <linearGradient id="antennaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#555" />
+      <stop offset="30%" stop-color="#111" />
+      <stop offset="100%" stop-color="#000" />
+    </linearGradient>
+
+    <!-- Glass Wing Fill -->
+    <linearGradient id="glassWing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.5)" />
+      <stop offset="50%" stop-color="rgba(255, 255, 255, 0.1)" />
+      <stop offset="100%" stop-color="rgba(255, 255, 255, 0.3)" />
+    </linearGradient>
+    
+    <!-- Eye Glow Filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Body Clip Path to keep stripes perfectly aligned -->
+    <clipPath id="bodyClip">
+      <path d="M 196 230 
+               L 316 230 
+               L 356 420 
+               C 356 440 336 450 316 450 
+               L 196 450 
+               C 176 450 156 440 156 420 Z" />
+    </clipPath>
+  </defs>
+
+  <!-- ================= BACKGROUND WINGS ================= -->
+  <g stroke="url(#silverMetal)" stroke-width="4" stroke-linejoin="round">
+    <!-- Upper Left Wing -->
+    <path d="M 210 240 C 130 190 30 220 50 280 C 70 330 140 320 180 300 Z" fill="url(#glassWing)" />
+    <!-- Lower Left Wing -->
+    <path d="M 180 300 C 110 320 60 380 90 410 C 120 440 160 380 170 340 Z" fill="url(#glassWing)" />
+    <!-- Upper Right Wing -->
+    <path d="M 302 240 C 382 190 482 220 462 280 C 442 330 372 320 332 300 Z" fill="url(#glassWing)" />
+    <!-- Lower Right Wing -->
+    <path d="M 332 300 C 402 320 452 380 422 410 C 392 440 352 380 342 340 Z" fill="url(#glassWing)" />
+  </g>
+
+  <!-- Wing Geometric Veins (Left) -->
+  <g stroke="rgba(255,255,255,0.7)" stroke-width="2" fill="none">
+    <path d="M 210 240 L 50 280" />
+    <path d="M 150 225 L 120 305" />
+    <path d="M 180 300 L 90 410" />
+  </g>
+
+  <!-- Wing Geometric Veins (Right) -->
+  <g stroke="rgba(255,255,255,0.7)" stroke-width="2" fill="none">
+    <path d="M 302 240 L 462 280" />
+    <path d="M 362 225 L 392 305" />
+    <path d="M 332 300 L 422 410" />
+  </g>
+
+  <!-- ================= BODY (CLIPPED) ================= -->
+  <!-- Subtle shadow behind body -->
+  <path d="M 196 230 L 316 230 L 356 420 C 356 440 336 450 316 450 L 196 450 C 176 450 156 440 156 420 Z" fill="rgba(0,0,0,0.6)" transform="translate(0, 8)" filter="blur(6px)"/>
+  
+  <g clip-path="url(#bodyClip)">
+    <!-- Main Dark Base -->
+    <rect x="140" y="220" width="240" height="250" fill="url(#bodyDarkMetal)" />
+    
+    <!-- Top Dark Section Base -->
+    <rect x="140" y="220" width="240" height="50" fill="url(#bodyDarkMetal)" />
+    
+    <!-- Silver Stripe 1 -->
+    <rect x="140" y="270" width="240" height="30" fill="url(#silverMetal)" />
+    <rect x="140" y="300" width="240" height="5" fill="#000" /> <!-- Groove -->
+    
+    <!-- Dark Stripe 2 -->
+    <rect x="140" y="305" width="240" height="35" fill="url(#bodyDarkMetal)" />
+    <rect x="140" y="340" width="240" height="5" fill="#000" /> <!-- Groove -->
+    
+    <!-- Silver Stripe 3 -->
+    <rect x="140" y="345" width="240" height="30" fill="url(#silverMetal)" />
+    <rect x="140" y="375" width="240" height="5" fill="#000" /> <!-- Groove -->
+    
+    <!-- Bottom Dark Section -->
+    <rect x="140" y="380" width="240" height="70" fill="url(#bodyDarkMetal)" />
+  </g>
+  
+  <!-- Body Outer Outline (3D bevel effect) -->
+  <path d="M 196 230 L 316 230 L 356 420 C 356 440 336 450 316 450 L 196 450 C 176 450 156 440 156 420 Z" fill="none" stroke="#555" stroke-width="2" />
+
+  <!-- ================= ANTENNAE ================= -->
+  <!-- Left Antenna -->
+  <path d="M 216 110 C 190 50 140 40 120 60" fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" />
+  <path d="M 216 110 C 190 50 140 40 120 60" fill="none" stroke="url(#antennaGrad)" stroke-width="12" stroke-linecap="round" />
+  <!-- Left Antenna Highlight -->
+  <path d="M 212 105 C 188 52 142 43 123 60" fill="none" stroke="#FFF" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Right Antenna -->
+  <path d="M 296 110 C 322 50 372 40 392 60" fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" />
+  <path d="M 296 110 C 322 50 372 40 392 60" fill="none" stroke="url(#antennaGrad)" stroke-width="12" stroke-linecap="round" />
+  <!-- Right Antenna Highlight -->
+  <path d="M 300 105 C 324 52 370 43 389 60" fill="none" stroke="#FFF" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- ================= HEAD ================= -->
+  <!-- Head Drop Shadow -->
+  <circle cx="256" cy="180" r="80" fill="rgba(0,0,0,0.8)" transform="translate(0, 10)" filter="blur(8px)"/>
+  
+  <!-- Main Metallic Head Circle -->
+  <circle cx="256" cy="180" r="80" fill="url(#headMetal)" stroke="#444" stroke-width="2" />
+  
+  <!-- Conical metal highlight overlay (subtle starburst for brushed metal feel) -->
+  <polygon points="256,180 176,120 186,100" fill="#FFF" opacity="0.05" />
+  <polygon points="256,180 336,120 326,100" fill="#FFF" opacity="0.05" />
+  <polygon points="256,180 236,260 276,260" fill="#FFF" opacity="0.05" />
+  
+  <!-- Top Edge Highlight -->
+  <path d="M 184 144 A 80 80 0 0 1 328 144" fill="none" stroke="#FFF" stroke-width="3" opacity="0.4" stroke-linecap="round"/>
+
+  <!-- ================= EYES ================= -->
+  <!-- Left Eye -->
+  <circle cx="216" cy="180" r="14" fill="#E0FFFF" filter="url(#glow)" />
+  <circle cx="216" cy="180" r="10" fill="#FFFFFF" />
+  
+  <!-- Right Eye -->
+  <circle cx="296" cy="180" r="14" fill="#E0FFFF" filter="url(#glow)" />
+  <circle cx="296" cy="180" r="10" fill="#FFFFFF" />
+
 </svg>

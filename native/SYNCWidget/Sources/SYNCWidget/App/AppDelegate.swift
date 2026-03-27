@@ -140,11 +140,33 @@ final class SYNCWidgetAppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Event Classification
 
     private func classifyEvent(_ event: ContextEventPayload) {
-        // Local MLX action classification disabled — all task suggestions now come
-        // from the web-first suggest-action pipeline which has full business context
-        // (invoices, deals, contacts, amounts, deadlines).
-        // MLX classifySemantic() remains active for activity analysis.
-        return
+        guard classifierReady, let classifier = classifier else { return }
+
+        Task {
+            let result = await classifier.classify(event: event)
+            // FallbackClassifier already sends action_detected internally and returns nil.
+            // MLXActionClassifier returns an ActionClassification we must forward ourselves.
+            guard let classification = result, classification.actionable else { return }
+
+            await MainActor.run {
+                self.stdoutWriter.send(OutgoingMessage(
+                    type: "action_detected",
+                    payload: [
+                        "id": .string(UUID().uuidString),
+                        "eventHash": .string(self.generateEventHash(event)),
+                        "title": .string(classification.title),
+                        "actionType": .string(classification.actionType),
+                        "confidence": .double(Double(classification.confidence)),
+                        "localPayload": .dictionary([
+                            "eventType": .string(event.eventType),
+                            "summary": .string(event.summary),
+                            "source": .string(event.source.application),
+                        ]),
+                    ]
+                ))
+                self.log("Action detected: \(classification.title) (\(classification.actionType), \(String(format: "%.2f", classification.confidence)))")
+            }
+        }
     }
 
     // MARK: - Semantic Classification

@@ -38,27 +38,15 @@ export function createSystemTray(): Tray {
     ? path.join(process.resourcesPath, 'assets', 'tray', 'trayTemplate.png')
     : path.join(app.getAppPath(), 'assets', 'tray', 'trayTemplate.png');
 
-  // Fallback bee icon (22x22 PNG, base64-encoded) — metallic teal/cyan bee.
+  // Fallback bee icon (22x22 transparent template PNG) — black silhouette, no background.
   const BEE_ICON_B64 =
-    'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAEFElEQVR4nNWTW2gcVRjHzzlz25nZnb1v' +
-    'NpdNzCYsaatNkRZShfoiKkiR+iAKXmi8ElGbl774oj6KVpEi+iAWoVJCQRCfBBWx1EKR0jYpidakTpLd' +
-    '7G6yt5nduZ5z5CzNkmRTC4IP/mFg+L7//8c538cB4A46emGGsu/f9hH4j8Rv/qjJuKQk43Lu+WOHVn/8' +
-    'tVK5fP2cbTbFUHbwYGutvIwtuwIAIJwoKHJvKrfy/YXzSOBR6v5770OEloaffDR389x318s3fq8xHtwE' +
-    'x/aMxh86+XpWjUUlxHPKxU/PbJgbVc0VxafN2flTfrNVpBhjTpYjYkTrUcdG30DV2mklrNUnXnkuCnkO' +
-    'WA2DfHN8+vK2UWSfevxAE9E+JRkTZU2zH3z1BVmNhA0lFpXkVGJQiEb28pHwPj6oZpTcyBQobXykRiLG' +
-    'kbdejofSKUHtScosf/TCzJvbThwdG0nuPzF5ONLfKwyk+9aJ60HLNLVqvhi98sMvx72mJQMICPYxJcXy' +
-    '+4dffAbF+nurSljzkSSilbV8orZa8H5+7e1vt83YWq+0Zk9/denA9OSEFdRAIBiUeFUJWEFpj5xKZMYP' +
-    'jicAQvDm4pLR0vPvWEHpvKAF54Eo1CzT9MxS2WP5ruW5DdOGANJrH395EZ6YnOgbGvLXm0ZWv3LjsdDY' +
-    'cFSIaOpyuQTEeFjgQgq3fHXhCUGRraQaqud1PcRyrbVyqwtMfUzchuGYCKKrn5z5zZ169mEqCKrnuprr' +
-    'uPJifhVBnoOYUupZDmc3m7xRLAOTFOPzn539ySyUWiy/yessjxJCSRtu+q1aXZz7YkZ3HCeGMVFNvcBT' +
-    'TCB1fYBtF9YXljjrz7/OMt/s51/PmYWSw6As3wXuwDGGvuUE1EP7p/VL1x7RRjJyYu8oHBu+B7grRWDd' +
-    'yoNgdgCinuTUxvLaA061Dl2j6TEoy9/55VEKKYIh81Y+HuhLxbHry7nRLJJkGYwfmQDKQBoACoJSOhkx' +
-    'llYjvuOKFOP2obZiusEQcsTHPICATwym+eRwP182G5BAACqeDXpGM1xqJMPHM+m2h3kppV2czvI6IhQD' +
-    'SgklFDdqBnERh3lJ5MrF9XYbEwKI62G7brQ9zNvO3A1MGdTzan7Lqjf0Qs0yLAlJAoAQcrf7mDiu51Xr' +
-    'bQ/zssxdwYBSTF2vbs0tvAt4/pScHRSRHIgCdPu2hHjEsqvWor7CPMzLMjsxnSfdEYQcRFCAohhDQXUw' +
-    'sG/sAxRUhqAghFmbel6dNFsr9uz8NDGbOnXdCrvjTng3eCtcEGNQDgxIuZH3YEDq3QQ783+cpC1bp97u' +
-    '0DZiZ6EjNlPI4HwYCkIMSlKvkOl7yVvSPyS2U6CeVwF0d2g7vlsRbIUDgCBCAuC5ULvGduBj85+g/0/9' +
-    'DfQgRZW7XkCYAAAAAElFTkSuQmCC';
+    'iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAABOElEQVR4nO3Uu0pDQRCA4S/x' +
+    'ggYFCwVB0VKwtBRRW1/Bh/AVbK0tfQhLa8EnSCVWVqkMguLdaGRhTlgP8cQLdvlhObNzY3Zm' +
+    '9zDkv6l9oetiAeu4xinew17HFhZxhssspjJxwXTY19DASeh38IBmJLvxBw4iUTPkPzESFW/j' +
+    'LarrhrwVtuTTl6pWjKKDQ1xhJfQXmMNe5vPjihO7MaB8JZ2qivsxVjrNTFRVtKITutyniOmR' +
+    'jlKmgdtsP479kk/SyZI3yrejX+K7LCBVuIFNPMY+JTnHceZTxPRIl73MW+gnY7+KeSxhOeSk' +
+    'Ez71iBnYisQU7jGBNo4iuJYlSrbn8P32IxmLb3q2T9ngivUUttx3YCvE5FN1r2jhJap7DrkV' +
+    'ttpX97jqgRSkYc36TDv+F7+m9kvbED0+ADsBRjMrS/pCAAAAAElFTkSuQmCC';
 
   let icon: Electron.NativeImage;
   try {
@@ -72,12 +60,10 @@ export function createSystemTray(): Tray {
     icon = nativeImage.createFromDataURL(`data:image/png;base64,${BEE_ICON_B64}`);
   }
 
-  // On macOS, template images automatically adapt to dark/light mode.
-  // The bee icon is coloured (not purely black/white), so do NOT set template mode —
-  // that would make it invisible in dark mode by applying a monochrome mask.
-  // Instead keep it as-is; macOS will render it at the correct size.
+  // Template mode: macOS automatically renders white in dark mode, black in light mode.
+  // The icon is a black silhouette on transparent background, so template mode works correctly.
   if (process.platform === 'darwin') {
-    icon.setTemplateImage(false);
+    icon.setTemplateImage(true);
   }
 
   tray = new Tray(icon);

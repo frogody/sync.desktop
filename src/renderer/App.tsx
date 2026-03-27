@@ -109,7 +109,7 @@ export default function App() {
       } else if (newCount === 2) {
         (window as any).electron.expandWindow('voice');
       } else if (newCount >= 3) {
-        (window as any).electron.openExternal('https://app.hyve.com');
+        (window as any).electron.openExternal('https://app.isyncso.com');
       }
       setClickCount(0);
     }, 400);

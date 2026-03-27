@@ -63,6 +63,11 @@ interface QueuedAction {
   title: string;
   subtitle?: string;
   actionType: string;
+  integrationIcon?: string;
+  confidenceLevel?: string;
+  previewText?: string;
+  importanceScore?: number;
+  urgencyScore?: number;
 }
 
 export class ActionService {
@@ -229,6 +234,11 @@ export class ActionService {
             title: next.title,
             subtitle: next.subtitle,
             actionType: next.actionType,
+            integrationIcon: next.integrationIcon,
+            confidenceLevel: next.confidenceLevel,
+            previewText: next.previewText,
+            importanceScore: next.importanceScore,
+            urgencyScore: next.urgencyScore,
           });
         }
         console.log(`[action-service] Drained queued action: ${next.id} (${this.actionQueue.length} remaining)`);
@@ -307,6 +317,18 @@ export class ActionService {
 
     const { id, eventHash, title, actionType, confidence, localPayload } = detected;
 
+    // Block developer/system tool events — they should never generate action pills
+    const BLOCKED_APPS = [
+      'Terminal', 'iTerm2', 'iTerm', 'Warp', 'Hyper', 'Claude Code',
+      'Visual Studio Code', 'Xcode', 'Sublime Text', 'caffeinate',
+      'Activity Monitor', 'System Preferences', 'System Settings'
+    ];
+    const sourceApp: string = (detected as any).localPayload?.source ?? '';
+    if (BLOCKED_APPS.some(app => sourceApp.includes(app))) {
+      console.log(`[action-service] Skipping developer/system tool event: ${sourceApp}`);
+      return;
+    }
+
     // Dedup: check if event_hash already exists
     const existing = db.prepare('SELECT action_id FROM local_actions WHERE event_hash = ?').get(eventHash) as { action_id: string } | undefined;
     if (existing) {
@@ -329,7 +351,7 @@ export class ActionService {
     this.startAckTimer(id);
   };
 
-  private onActionApproved = (payload: { id: string }): void => {
+  private onActionApproved = async (payload: { id: string }): Promise<void> => {
     const { id } = payload;
     console.log('[action-service] Action approved by user:', id);
 
@@ -339,7 +361,10 @@ export class ActionService {
       db.prepare(`UPDATE local_actions SET status = 'approved', resolved_at = datetime('now') WHERE action_id = ?`).run(id);
     }
 
-    // POST to execute-action edge function
+    // Update cloud status to 'approved' FIRST — execute-action requires approved status
+    await this.patchActionStatus(id, 'approved');
+
+    // Now execute the approved action
     this.postExecuteAction(id);
   };
 
@@ -412,6 +437,13 @@ export class ActionService {
 
       // Check should_notify from cloud response
       const shouldNotify = result.should_notify !== false;
+
+      // Require minimum cloud confidence before showing pill
+      const cloudConf = result.cloud_confidence ?? 0;
+      if (cloudConf < 0.65) {
+        console.log(`[action-service] Skipping low-confidence action (conf=${cloudConf}): ${result.title}`);
+        return;
+      }
 
       // Only show pill if cloud validated the action (status = pending)
       if (result.status === 'pending' && result.title && this.notchBridge) {
@@ -641,7 +673,7 @@ export class ActionService {
 
         // Join the pending_actions channel filtered by user_id
         const joinMsg = JSON.stringify({
-          topic: `realtime:public:pending_actions:user_id=eq.${user.id}`,
+          topic: `realtime:public:pending_actions`,
           event: 'phx_join',
           payload: {
             config: {
@@ -766,6 +798,11 @@ export class ActionService {
           title: cloudTitle,
           subtitle: record.subtitle || undefined,
           actionType: localAction.action_type,
+          ...(record.integration_icon ? { integrationIcon: record.integration_icon } : {}),
+          ...(record.confidence_display ? { confidenceLevel: record.confidence_display } : {}),
+          ...(record.preview_text ? { previewText: record.preview_text } : {}),
+          ...(record.importance_score != null ? { importanceScore: record.importance_score } : {}),
+          ...(record.urgency_score != null ? { urgencyScore: record.urgency_score } : {}),
         });
       }
 
@@ -791,6 +828,11 @@ export class ActionService {
           title,
           subtitle: record.subtitle || undefined,
           actionType,
+          ...(record.integration_icon ? { integrationIcon: record.integration_icon } : {}),
+          ...(record.confidence_display ? { confidenceLevel: record.confidence_display } : {}),
+          ...(record.preview_text ? { previewText: record.preview_text } : {}),
+          ...(record.importance_score != null ? { importanceScore: record.importance_score } : {}),
+          ...(record.urgency_score != null ? { urgencyScore: record.urgency_score } : {}),
         };
 
         if (this.shouldShowAction(shouldNotify)) {

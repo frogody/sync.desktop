@@ -22,7 +22,7 @@ struct NotchContainerView: View {
             }
         }
         .animation(
-            reduceMotion ? .none : viewModel.state.transitionAnimation,
+            reduceMotion ? .none : .spring(response: 0.42, dampingFraction: 0.72),
             value: viewModel.state
         )
     }

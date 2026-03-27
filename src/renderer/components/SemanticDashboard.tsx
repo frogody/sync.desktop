@@ -150,7 +150,7 @@ export default function SemanticDashboard({ onBack }: SemanticDashboardProps) {
   return (
     <div className="flex flex-col h-full bg-zinc-900/95">
       {/* Header */}
-      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-white/10 bg-zinc-900/80">
+      <div className="drag-region flex items-center justify-between px-4 py-3 border-b border-sync-teal/20 bg-gradient-to-r from-zinc-900 via-zinc-900 to-sync-teal/[0.06]">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}

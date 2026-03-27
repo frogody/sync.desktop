@@ -36,6 +36,11 @@ export interface NotchAction {
   title: string;
   subtitle?: string;
   actionType: string;
+  integrationIcon?: string;    // 'hubspot', 'gmail', 'slack', etc.
+  confidenceLevel?: string;    // 'high', 'medium', 'low'
+  previewText?: string;        // "Will update deal 'Acme' to Opportunity in HubSpot"
+  importanceScore?: number;    // 0-10
+  urgencyScore?: number;       // 0-10
 }
 
 /** Action detected by the Swift MLX classifier */
@@ -338,15 +343,21 @@ export class NotchBridge extends EventEmitter {
 
   /** Show an action in the notch widget (cloud-enriched or new) */
   sendAction(action: NotchAction): void {
-    this.send({
-      type: 'show_action',
-      payload: {
-        id: action.id,
-        title: action.title,
-        subtitle: action.subtitle || null,
-        actionType: action.actionType,
-      },
-    });
+    const payload: Record<string, unknown> = {
+      id: action.id,
+      title: action.title,
+      subtitle: action.subtitle || null,
+      actionType: action.actionType,
+    };
+
+    // Pass through optional rich fields for the Swift widget
+    if (action.integrationIcon !== undefined) payload.integrationIcon = action.integrationIcon;
+    if (action.confidenceLevel !== undefined) payload.confidenceLevel = action.confidenceLevel;
+    if (action.previewText !== undefined) payload.previewText = action.previewText;
+    if (action.importanceScore !== undefined) payload.importanceScore = action.importanceScore;
+    if (action.urgencyScore !== undefined) payload.urgencyScore = action.urgencyScore;
+
+    this.send({ type: 'show_action', payload });
   }
 
   /** Hide/dismiss an action from the notch widget */

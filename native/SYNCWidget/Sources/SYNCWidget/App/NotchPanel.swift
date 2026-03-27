@@ -106,13 +106,13 @@ final class NotchOverlayPanel: NSPanel {
             contentHeight = 1
             width = 1
         case .actionPending:
-            // Pill: notch height + pill (44px) + padding
-            contentHeight = geometry.notchHeight + 4 + 44 + 8
-            width = 500
+            // Pill: notch height + pill (52px) + padding + shadow bleed
+            contentHeight = geometry.notchHeight + 4 + 52 + 20
+            width = 520
         case .actionSuccess:
             // Same size as actionPending for smooth transition
-            contentHeight = geometry.notchHeight + 4 + 44 + 8
-            width = 500
+            contentHeight = geometry.notchHeight + 4 + 52 + 20
+            width = 520
         }
 
         let screen = geometry.screenFrame

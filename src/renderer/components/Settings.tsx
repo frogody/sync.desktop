@@ -111,7 +111,7 @@ export default function Settings({ onClose }: SettingsProps) {
   return (
     <div className="w-full h-full flex flex-col bg-[#0d0d0d] text-white overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-sync-teal/15 flex-shrink-0">
         <h1 className="text-sm font-semibold text-white/90 tracking-wide">Settings</h1>
         <button
           onClick={onClose}
@@ -230,11 +230,11 @@ export default function Settings({ onClose }: SettingsProps) {
             <div className="pt-2 space-y-2">
               <ExternalLink
                 label="Open Web App"
-                url="https://app.hyve.com"
+                url="https://app.isyncso.com"
               />
               <ExternalLink
                 label="Privacy Policy"
-                url="https://app.hyve.com/privacy"
+                url="https://app.isyncso.com/privacy"
               />
             </div>
           </div>

@@ -413,9 +413,9 @@ export default function SyncAvatarMini({ size = 48, className = '' }: SyncAvatar
         className="absolute inset-0 pointer-events-none"
         style={{
           clipPath: HEX_CLIP,
-          background: `radial-gradient(circle, ${activeAgentColor}40 0%, transparent 70%)`,
-          transform: 'scale(1.2)',
-          opacity: 0.3,
+          background: `radial-gradient(circle, ${activeAgentColor}50 0%, rgba(42,157,143,0.15) 50%, transparent 70%)`,
+          transform: 'scale(1.25)',
+          opacity: 0.4,
         }}
       />
 
