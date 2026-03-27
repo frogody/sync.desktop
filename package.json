@@ -1,6 +1,6 @@
 {
   "name": "sync-desktop",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "SYNC Desktop Companion - Activity tracker and AI assistant for app.isyncso.com",
   "main": "dist/main/index.js",
   "author": "iSyncSO",
