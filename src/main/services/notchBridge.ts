@@ -57,6 +57,8 @@ export interface DetectedAction {
 // NotchBridge Class
 // ============================================================================
 
+const MAX_BUFFER_SIZE = 1024 * 1024; // 1MB
+
 export class NotchBridge extends EventEmitter {
   private process: ChildProcess | null = null;
   private buffer: string = '';
@@ -119,6 +121,14 @@ export class NotchBridge extends EventEmitter {
     this.process.stdout?.setEncoding('utf8');
     this.process.stdout?.on('data', (data: string) => {
       this.buffer += data;
+
+      // Cap buffer size to prevent unbounded memory growth
+      if (this.buffer.length > MAX_BUFFER_SIZE) {
+        console.warn(`[notch-bridge] Buffer exceeded ${MAX_BUFFER_SIZE} bytes, resetting`);
+        this.buffer = '';
+        return;
+      }
+
       const lines = this.buffer.split('\n');
       this.buffer = lines.pop() || ''; // Keep incomplete line in buffer
 

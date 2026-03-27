@@ -85,6 +85,7 @@ export class ActivityTracker extends EventEmitter {
   // Track current activity for quick access
   private currentActivity: Partial<ActivityLog> | null = null;
   private permissionWarningLogged: boolean = false;
+  private isPolling: boolean = false;
 
   // ============================================================================
   // Lifecycle
@@ -149,49 +150,57 @@ export class ActivityTracker extends EventEmitter {
   // ============================================================================
 
   private async poll(): Promise<void> {
-    // Check accessibility permission BEFORE calling get-windows to avoid
-    // triggering the macOS permission dialog every 5 seconds.
-    if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
-      if (!this.permissionWarningLogged) {
-        console.warn('[activity] Accessibility permission not granted — skipping window polling');
-        this.permissionWarningLogged = true;
-      }
-      return;
-    }
-    this.permissionWarningLogged = false;
+    // Re-entry guard: prevent overlapping polls
+    if (this.isPolling) return;
+    this.isPolling = true;
 
     try {
-      const getActiveWindow = await loadActiveWindow();
-      const window = await getActiveWindow();
-
-      // Handle idle state (no active window)
-      if (!window) {
-        if (!this.isIdle) {
-          this.handleIdleStart();
+      // Check accessibility permission BEFORE calling get-windows to avoid
+      // triggering the macOS permission dialog every 5 seconds.
+      if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
+        if (!this.permissionWarningLogged) {
+          console.warn('[activity] Accessibility permission not granted — skipping window polling');
+          this.permissionWarningLogged = true;
         }
         return;
       }
+      this.permissionWarningLogged = false;
 
-      // End idle if we were idle
-      if (this.isIdle) {
-        this.handleIdleEnd();
-      }
+      try {
+        const getActiveWindow = await loadActiveWindow();
+        const window = await getActiveWindow();
 
-      const windowKey = this.getWindowKey(window);
-
-      // Check if window changed
-      if (windowKey !== this.lastWindow) {
-        await this.handleWindowChange(window, windowKey);
-      } else {
-        // Same window - periodically update duration (every 30 seconds)
-        const elapsed = Date.now() - this.lastWindowStart;
-        if (elapsed > 30000 && this.lastActivityId) {
-          this.updateCurrentDuration();
+        // Handle idle state (no active window)
+        if (!window) {
+          if (!this.isIdle) {
+            this.handleIdleStart();
+          }
+          return;
         }
+
+        // End idle if we were idle
+        if (this.isIdle) {
+          this.handleIdleEnd();
+        }
+
+        const windowKey = this.getWindowKey(window);
+
+        // Check if window changed
+        if (windowKey !== this.lastWindow) {
+          await this.handleWindowChange(window, windowKey);
+        } else {
+          // Same window - periodically update duration (every 30 seconds)
+          const elapsed = Date.now() - this.lastWindowStart;
+          if (elapsed > 30000 && this.lastActivityId) {
+            this.updateCurrentDuration();
+          }
+        }
+      } catch (error) {
+        // active-win can fail if accessibility permissions not granted
+        console.error('[activity] Failed to get active window:', error);
       }
-    } catch (error) {
-      // active-win can fail if accessibility permissions not granted
-      console.error('[activity] Failed to get active window:', error);
+    } finally {
+      this.isPolling = false;
     }
   }
 

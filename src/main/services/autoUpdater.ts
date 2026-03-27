@@ -30,6 +30,7 @@ let downloadProgress = 0;
 let updateInfo: UpdateInfo | null = null;
 let isChecking = false;
 let isDownloading = false;
+let checkIntervalId: ReturnType<typeof setInterval> | null = null;
 
 // ============================================================================
 // Helper — send event to renderer
@@ -215,7 +216,15 @@ export function initAutoUpdater(): void {
   }, UPDATER_INITIAL_DELAY_MS);
 
   // Check periodically
-  setInterval(() => {
+  checkIntervalId = setInterval(() => {
     checkForUpdates();
   }, UPDATER_CHECK_INTERVAL_MS);
+}
+
+export function stopAutoUpdater(): void {
+  if (checkIntervalId !== null) {
+    clearInterval(checkIntervalId);
+    checkIntervalId = null;
+    console.log('[updater] Auto-updater interval cleared');
+  }
 }

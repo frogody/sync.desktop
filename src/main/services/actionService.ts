@@ -23,6 +23,30 @@ import type { NotchBridge, DetectedAction } from './notchBridge';
 import type Database from 'better-sqlite3';
 
 // ============================================================================
+// Fetch with Timeout
+// ============================================================================
+
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+  timeoutMs: number = 30000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      console.warn(`[action-service] Fetch timed out after ${timeoutMs}ms: ${url}`);
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -78,6 +102,12 @@ export class ActionService {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private pendingAckTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private realtimeHeartbeat: ReturnType<typeof setInterval> | null = null;
+
+  // WebSocket reconnect backoff state
+  private wsReconnectDelay: number = 5000;  // Start at 5 seconds
+  private wsReconnectAttempts: number = 0;
+  private readonly WS_MAX_RECONNECT_DELAY: number = 5 * 60 * 1000; // 5 minutes
+  private readonly WS_MAX_RECONNECT_ATTEMPTS: number = 20;
 
   // Frequency capping state
   private recentActionTimestamps: number[] = [];
@@ -528,7 +558,7 @@ export class ActionService {
       const accessToken = getAccessToken();
       if (!accessToken) return;
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/pending_actions?id=eq.${actionId}`,
         {
           method: 'PATCH',
@@ -568,7 +598,7 @@ export class ActionService {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch(`${SUPABASE_URL}${path}`, {
+    const response = await fetchWithTimeout(`${SUPABASE_URL}${path}`, {
       method,
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -619,7 +649,7 @@ export class ActionService {
       const accessToken = getAccessToken();
       if (!accessToken) return;
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/pending_actions?id=eq.${actionId}&select=id,title,status,status_message`,
         {
           headers: {
@@ -670,6 +700,9 @@ export class ActionService {
       this.realtimeWs.onopen = () => {
         console.log('[action-service] Realtime WebSocket connected');
         this.realtimeConnected = true;
+        // Reset backoff on successful connection
+        this.wsReconnectDelay = 5000;
+        this.wsReconnectAttempts = 0;
 
         // Join the pending_actions channel filtered by user_id
         const joinMsg = JSON.stringify({
@@ -722,9 +755,17 @@ export class ActionService {
         this.realtimeConnected = false;
         this.clearHeartbeat();
 
-        // Reconnect after 5 seconds if still running
+        // Reconnect with exponential backoff if still running
         if (this.running) {
-          setTimeout(() => this.connectRealtime(), 5000);
+          this.wsReconnectAttempts++;
+          if (this.wsReconnectAttempts > this.WS_MAX_RECONNECT_ATTEMPTS) {
+            console.error(`[action-service] WebSocket reconnect failed after ${this.WS_MAX_RECONNECT_ATTEMPTS} attempts, giving up`);
+            return;
+          }
+          console.log(`[action-service] WebSocket reconnecting in ${this.wsReconnectDelay}ms (attempt ${this.wsReconnectAttempts}/${this.WS_MAX_RECONNECT_ATTEMPTS})`);
+          setTimeout(() => this.connectRealtime(), this.wsReconnectDelay);
+          // Double the delay, capped at 5 minutes
+          this.wsReconnectDelay = Math.min(this.wsReconnectDelay * 2, this.WS_MAX_RECONNECT_DELAY);
         }
       };
 

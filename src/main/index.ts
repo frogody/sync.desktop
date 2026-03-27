@@ -37,11 +37,11 @@ import { CloudSyncService } from './services/cloudSyncService';
 import { DeepContextManager } from './services/deepContextManager';
 import { DeepContextEngine } from '../deep-context';
 import { checkAndRequestPermissions, checkPermissions } from './services/permissions';
-import { initAutoUpdater } from './services/autoUpdater';
+import { initAutoUpdater, stopAutoUpdater } from './services/autoUpdater';
 import { NotchBridge } from './services/notchBridge';
 import { ActionService } from './services/actionService';
 import { EntityRegistry, SemanticProcessor, ThreadManager, IntentClassifier, SignatureComputer } from './services/semantic';
-import { initDatabase } from './db/database';
+import { initDatabase, closeDatabase } from './db/database';
 import { APP_PROTOCOL, WEB_APP_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../shared/constants';
 import {
   store,
@@ -79,6 +79,7 @@ let threadManager: ThreadManager | null = null;
 let intentClassifier: IntentClassifier | null = null;
 let signatureComputer: SignatureComputer | null = null;
 let mainWindow: BrowserWindow | null = null;
+let pendingDeepLink: string | null = null;
 
 // ============================================================================
 // Single Instance Lock
@@ -219,14 +220,31 @@ async function handleDeepLink(url: string) {
         // SEC-007: Clear authState after use (one-time use)
         setAuthState(null);
 
-        // Fetch user info
-        const userInfo = await fetchUserInfo(token);
-        if (userInfo) {
-          setUser(userInfo);
-          console.log('[main] User info saved:', userInfo.email);
-        } else {
-          console.error('[main] Failed to fetch user info after auth - user object not saved');
+        // Fetch user info with retry (up to 3 attempts, 2s delay between)
+        let userInfo = await fetchUserInfo(token);
+        if (!userInfo) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            console.log(`[main] fetchUserInfo retry ${attempt}/3 after 2s...`);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            userInfo = await fetchUserInfo(token);
+            if (userInfo) break;
+          }
         }
+
+        if (!userInfo) {
+          console.error('[main] Failed to fetch user info after 3 retries - auth failed');
+          const widget = getFloatingWidget();
+          if (widget) {
+            widget.webContents.send('auth:callback', {
+              success: false,
+              error: 'Could not load user profile. Please try again.',
+            });
+          }
+          return;
+        }
+
+        setUser(userInfo);
+        console.log('[main] User info saved:', userInfo.email);
 
         // Notify renderer of successful auth
         const widget = getFloatingWidget();
@@ -308,6 +326,13 @@ app.whenReady().then(async () => {
   // Create main floating widget
   mainWindow = await createFloatingWidget();
 
+  // Process any deep link that arrived before app was ready
+  if (pendingDeepLink) {
+    console.log('[main] Processing queued deep link');
+    handleDeepLink(pendingDeepLink);
+    pendingDeepLink = null;
+  }
+
   // Create system tray
   createSystemTray();
 
@@ -360,13 +385,6 @@ app.whenReady().then(async () => {
       // Start deep context engine (accessibility-based, no screen capture needed)
       deepContextEngine = new DeepContextEngine();
       deepContextEngine.start();
-
-      deepContextEngine.on('event', (event) => {
-        if (event.eventType === 'commitment_detected') {
-          console.log('[main] [deep-context-engine] Commitment:', event.semanticPayload?.summary);
-        }
-      });
-
       console.log('[main] Deep context engine started');
     } else {
       console.log('[main] Activity tracking disabled - accessibility permission not granted');
@@ -376,19 +394,7 @@ app.whenReady().then(async () => {
   // Start semantic entity registry (processes deep context events into structured entities)
   entityRegistry = new EntityRegistry();
   await entityRegistry.start();
-
-  if (deepContextEngine) {
-    deepContextEngine.on('event', (event) => {
-      if (entityRegistry) {
-        try {
-          entityRegistry.extractAndResolve(event);
-        } catch (err) {
-          console.error('[main] Entity extraction failed:', err);
-        }
-      }
-    });
-    console.log('[main] Semantic entity registry connected to deep context engine');
-  }
+  console.log('[main] Semantic entity registry started');
 
   // Start semantic processor (activity classification — Phase 2)
   // Note: notchBridge may not be started yet at this point, so we pass undefined
@@ -409,8 +415,25 @@ app.whenReady().then(async () => {
   signatureComputer = new SignatureComputer();
   console.log('[main] Signature computer ready');
 
+  // Wire a SINGLE consolidated event handler on deepContextEngine
+  // (replaces 3 separate .on('event') registrations to avoid triple-firing)
   if (deepContextEngine) {
     deepContextEngine.on('event', (event) => {
+      // 1. Log commitments
+      if (event.eventType === 'commitment_detected') {
+        console.log('[main] [deep-context-engine] Commitment:', event.semanticPayload?.summary);
+      }
+
+      // 2. Entity extraction
+      if (entityRegistry) {
+        try {
+          entityRegistry.extractAndResolve(event);
+        } catch (err) {
+          console.error('[main] Entity extraction failed:', err);
+        }
+      }
+
+      // 3. Semantic processing (activity classification)
       if (semanticProcessor) {
         try {
           semanticProcessor.processEvent(event);
@@ -419,6 +442,7 @@ app.whenReady().then(async () => {
         }
       }
     });
+    console.log('[main] Semantic entity registry + processor connected to deep context engine');
   }
   console.log('[main] Semantic processor started');
 
@@ -557,6 +581,12 @@ app.whenReady().then(async () => {
 
 // Handle macOS deep links
 app.on('open-url', (_event, url) => {
+  const widget = getFloatingWidget();
+  if (!app.isReady() || !widget) {
+    console.log('[main] App not ready or widget not created yet, queuing deep link');
+    pendingDeepLink = url;
+    return;
+  }
   handleDeepLink(url);
 });
 
@@ -614,6 +644,12 @@ app.on('before-quit', () => {
   if (activityTracker) {
     activityTracker.stop();
   }
+
+  // Stop auto-updater interval
+  stopAutoUpdater();
+
+  // Close database last (other services may flush during shutdown)
+  closeDatabase();
 
   console.log('[main] Cleanup complete');
 });

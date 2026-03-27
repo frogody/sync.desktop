@@ -29,6 +29,30 @@ import type { ContextEvent } from '../../deep-context/types';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../shared/constants';
 
 // ============================================================================
+// Fetch with Timeout
+// ============================================================================
+
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+  timeoutMs: number = 30000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      console.warn(`[sync] Fetch timed out after ${timeoutMs}ms: ${url}`);
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -115,7 +139,7 @@ export class CloudSyncService {
           : 'return=minimal';
       }
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+      const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
         method,
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -756,7 +780,7 @@ export class CloudSyncService {
 
     try {
       // 1. Get auth user from Supabase Auth
-      const authResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      const authResponse = await fetchWithTimeout(`${SUPABASE_URL}/auth/v1/user`, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${accessToken}`,
@@ -771,7 +795,7 @@ export class CloudSyncService {
       const authUser = await authResponse.json();
 
       // 2. Get user record from users table for company_id
-      const userResponse = await fetch(
+      const userResponse = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/users?id=eq.${authUser.id}&select=id,email,full_name,company_id`,
         {
           headers: {

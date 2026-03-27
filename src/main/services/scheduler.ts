@@ -46,6 +46,7 @@ export class Scheduler {
   private deepContextEngine: DeepContextEngine | null = null;
   private tasks: Map<string, ScheduledTask> = new Map();
   private isRunning: boolean = false;
+  private pendingTimeouts: NodeJS.Timeout[] = [];
 
   // Callbacks for cloud sync (will be set by CloudSyncService)
   private onSyncRequest: (() => Promise<void>) | null = null;
@@ -122,6 +123,12 @@ export class Scheduler {
     console.log('[scheduler] Stopping scheduler');
     this.isRunning = false;
 
+    // Clear all pending timeouts
+    for (const timeout of this.pendingTimeouts) {
+      clearTimeout(timeout);
+    }
+    this.pendingTimeouts = [];
+
     // Clear all intervals
     for (const [name, task] of this.tasks) {
       if (task.interval) {
@@ -132,6 +139,12 @@ export class Scheduler {
     }
 
     this.tasks.clear();
+  }
+
+  /** Track a setTimeout so it can be cleared on stop() */
+  private trackTimeout(timeout: NodeJS.Timeout): NodeJS.Timeout {
+    this.pendingTimeouts.push(timeout);
+    return timeout;
   }
 
   // ============================================================================
@@ -148,7 +161,7 @@ export class Scheduler {
     console.log(`[scheduler] Hourly summary will start in ${Math.round(msUntilNextHour / 1000 / 60)} minutes`);
 
     // Initial delay to align with hour boundary
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       // Run immediately at hour boundary
       this.runHourlySummary();
 
@@ -163,7 +176,7 @@ export class Scheduler {
         lastRun: null,
         isRunning: false,
       });
-    }, msUntilNextHour);
+    }, msUntilNextHour));
 
     // Register task
     this.tasks.set('hourly-summary', {
@@ -185,7 +198,7 @@ export class Scheduler {
     console.log(`[scheduler] Daily journal will start in ${Math.round(msUntilMidnight / 1000 / 60 / 60)} hours`);
 
     // Initial delay to align with midnight
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       // Run immediately at midnight
       this.runDailyJournal();
 
@@ -200,7 +213,7 @@ export class Scheduler {
         lastRun: null,
         isRunning: false,
       });
-    }, msUntilMidnight);
+    }, msUntilMidnight));
 
     // Register task
     this.tasks.set('daily-journal', {
@@ -221,7 +234,7 @@ export class Scheduler {
     }
     const msUntilCleanup = nextCleanup.getTime() - now.getTime();
 
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       this.runCleanup();
 
       const interval = setInterval(() => {
@@ -234,7 +247,7 @@ export class Scheduler {
         lastRun: null,
         isRunning: false,
       });
-    }, msUntilCleanup);
+    }, msUntilCleanup));
 
     this.tasks.set('cleanup', {
       name: 'cleanup',
@@ -261,9 +274,9 @@ export class Scheduler {
     });
 
     // Also run initial sync after a short delay
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       this.runSync();
-    }, SYNC_INITIAL_DELAY_MS);
+    }, SYNC_INITIAL_DELAY_MS));
   }
 
   private scheduleSemanticCycle(): void {
@@ -279,9 +292,9 @@ export class Scheduler {
     });
 
     // Run initial cycle after a short delay (let services initialize)
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       this.runSemanticCycle();
-    }, SEMANTIC_INITIAL_DELAY_MS);
+    }, SEMANTIC_INITIAL_DELAY_MS));
   }
 
   private scheduleSignatureComputation(): void {
@@ -297,9 +310,9 @@ export class Scheduler {
     });
 
     // Initial run after a delay (let semantic data accumulate first)
-    setTimeout(() => {
+    this.trackTimeout(setTimeout(() => {
       this.runSignatureComputation();
-    }, SIGNATURE_INITIAL_DELAY_MS);
+    }, SIGNATURE_INITIAL_DELAY_MS));
   }
 
   // ============================================================================

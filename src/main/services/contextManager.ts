@@ -117,14 +117,16 @@ export class ContextManager {
   private lastSnapshot: ContextSnapshot | null = null;
   private snapshotInterval: NodeJS.Timeout | null = null;
   private _isRunning: boolean = false;
+  private handleActivityBound: (event: ActivityEvent) => void;
 
   constructor(activityTracker: ActivityTracker) {
     this.activityTracker = activityTracker;
 
-    // Listen for activity events
-    this.activityTracker.on('activity', (event: ActivityEvent) => {
+    // Listen for activity events (stored as named reference for cleanup)
+    this.handleActivityBound = (event: ActivityEvent) => {
       this.handleActivityEvent(event);
-    });
+    };
+    this.activityTracker.on('activity', this.handleActivityBound);
 
     // Register health provider
     registerHealthProvider('context-manager', () => ({
@@ -159,6 +161,9 @@ export class ContextManager {
       clearInterval(this.snapshotInterval);
       this.snapshotInterval = null;
     }
+
+    // Remove event listener to prevent leaked references
+    this.activityTracker.removeListener('activity', this.handleActivityBound);
   }
 
   // ============================================================================
