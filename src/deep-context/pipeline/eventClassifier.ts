@@ -600,11 +600,15 @@ export class EventClassifier {
     // Determine proficiency based on heuristics
     const proficiency = this.estimateProficiency(text, category);
 
+    // Build evidence with window title for richer context
+    const titleSnippet = windowTitle.length > 50 ? windowTitle.substring(0, 50) + '...' : windowTitle;
+    const profLabel = proficiency === 'expert' ? 'Expert-level' : proficiency === 'advanced' ? 'Advanced' : proficiency === 'intermediate' ? 'Working' : 'Basic';
+
     signals.push({
       skillCategory: skillInfo.category,
       skillPath,
       proficiencyIndicator: proficiency,
-      evidence: `Active use of ${appName}`,
+      evidence: titleSnippet ? `${profLabel} use of ${appName}: ${titleSnippet}` : `${profLabel} use of ${appName}`,
     });
 
     // Additional skill signals from text content
@@ -690,12 +694,65 @@ export class EventClassifier {
   }
 
   private estimateProficiency(text: string, category: ActivityCategory): SkillSignal['proficiencyIndicator'] {
-    // TODO: Decision point — proficiency estimation heuristics
-    // For Phase 1, default to 'intermediate' for all activity
-    // Phase 2 can analyze text complexity, tool usage patterns, etc.
-    if (!text) return 'beginner';
-    if (text.length > 500) return 'intermediate';
-    return 'intermediate';
+    if (!text || text.length < 10) return 'beginner';
+    const t = text.toLowerCase();
+
+    switch (category) {
+      case 'spreadsheet': return this.spreadsheetDepth(t);
+      case 'coding':      return this.codingDepth(t);
+      case 'terminal':    return this.terminalDepth(t);
+      case 'design':      return this.designDepth(t);
+      case 'document_editing': return this.documentDepth(t);
+      case 'email_compose':
+      case 'communication':
+      case 'meeting':     return this.communicationDepth(t);
+      default:            return text.length > 500 ? 'intermediate' : 'beginner';
+    }
+  }
+
+  // ── Category-specific complexity analyzers ──────────────────────
+  // Each returns the HIGHEST complexity tier detected in the visible text.
+
+  private spreadsheetDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(vba|macro|sub\s+\w+\(|function\s+\w+\(|power\s*query|power\s*pivot|lambda\(|xlookup|let\(|unique\(|filter\(|sort\(|sequence\(|dynamic\s*array|apps?\s*script|office\s*script|dashboard)/i.test(t)) return 'expert';
+    if (/\b(vlookup|hlookup|index|match|sumif|countif|averageif|sumproduct|indirect|offset|pivot|chart|graph|conditional\s*format|named\s*range|data\s*validation|solver|goal\s*seek|subtotal)/i.test(t)) return 'advanced';
+    if (/\b(=sum|=average|=count|=if|=max|=min|=len|=trim|=concat|formula|sort|filter|freeze|merge|wrap|percent|currency|date\s*format|number\s*format)/i.test(t)) return 'intermediate';
+    return 'beginner';
+  }
+
+  private codingDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(microservice|distributed|load\s*balanc|sharding|cqrs|event\s*sourcing|circuit\s*breaker|rate\s*limit|cache\s*invalidat|profil(?:e|ing)|memory\s*leak|thread\s*pool|worker|cluster|ast|compiler|transpil|metaclass|proxy\s*pattern|system\s*design)/i.test(t)) return 'expert';
+    if (/\b(abstract|interface\s*\{|generic|<T>|decorator|@\w+\(|middleware|interceptor|resolver|guard|describe\(|it\(|expect\(|jest|cypress|mocha|pytest|mock|fixture|pipeline|workflow|deploy|docker|k8s|kubernetes|refactor|architect)/i.test(t)) return 'advanced';
+    if (/\b(class\s+\w+|async|await|try\s*\{|catch\s*\(|promise|import\s+|export\s+|module|require\(|throw\s+new|extends|implements|interface\s+\w+|type\s+\w+\s*=)/i.test(t)) return 'intermediate';
+    return 'beginner';
+  }
+
+  private terminalDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(terraform|ansible|pulumi|kubectl|helm|docker[\s-]compose|iptables|nginx|haproxy|systemctl|crontab|certbot|openssl|aws\s+|gcloud|az\s+)/i.test(t)) return 'expert';
+    if (/\b(docker|ssh|rsync|curl.*-[XHLO]|screen|tmux|nohup|git\s+(rebase|cherry|stash|bisect)|make\s|cmake|gcc|brew\s|apt\s|pip\s+install|npm\s+publish)/i.test(t)) return 'advanced';
+    if (/\b(grep|find\s|sed\s|awk\s|sort|uniq|wc\s|chmod|chown|kill\s|ps\s|git\s+(commit|push|pull|branch|checkout|merge|log|diff)|npm|yarn|pip|node|python)/i.test(t)) return 'intermediate';
+    return 'beginner';
+  }
+
+  private designDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(plugin|design\s*token|hand[\s-]?off|design\s*system|variable\s*(set|mode)|multi[\s-]?flow|interaction\s*design)/i.test(t)) return 'expert';
+    if (/\b(prototype|animation|variant|auto[\s-]?layout|constraint|responsive|breakpoint|component\s*set|boolean\s*property|instance\s*swap)/i.test(t)) return 'advanced';
+    if (/\b(component|frame|layer|style|group|mask|vector|pen\s*tool|gradient|shadow|blur|grid|align|boolean\s*op)/i.test(t)) return 'intermediate';
+    return 'beginner';
+  }
+
+  private documentDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(template|mail\s*merge|macro|script|toc|bibliography|cross[\s-]?reference|field\s*code|form\s*field|content\s*control)/i.test(t)) return 'expert';
+    if (/\b(style|heading\s*\d|outline|footnote|endnote|header|footer|section\s*break|column|table\s*of|track\s*change|comment|revision)/i.test(t)) return 'advanced';
+    if (/\b(bold|italic|underline|font|paragraph|indent|bullet|number\s*list|table|image|align|margin|spacing|page\s*break)/i.test(t)) return 'intermediate';
+    return 'beginner';
+  }
+
+  private communicationDepth(t: string): SkillSignal['proficiencyIndicator'] {
+    if (/\b(stakeholder|executive\s*summary|strategy|board|quarterly|kpi|metrics|roadmap|budget|forecast|proposal|rfc|architecture\s*decision)/i.test(t)) return 'expert';
+    if (/\b(action\s*item|follow[\s-]?up|agenda|minutes|deliverable|milestone|deadline|priority|escalat|blocker|status\s*update|standup)/i.test(t)) return 'advanced';
+    if (/\b(meeting|call|message|reply|forward|thread|channel|mention)/i.test(t)) return 'intermediate';
+    return 'beginner';
   }
 
   private detectProgrammingLanguages(text: string): string[] {
