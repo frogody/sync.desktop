@@ -5,7 +5,7 @@
  * ActionService logic, Permissions logic, AutoUpdater logic, DeepContextManager logic.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 
@@ -14,38 +14,12 @@ import fs from 'fs';
 // ============================================================================
 
 describe('Shared Constants', () => {
-  // Import constants directly
-  const constants = {
-    APP_VERSION: '2.2.0',
-    APP_NAME: 'SYNC Desktop',
-    APP_PROTOCOL: 'isyncso',
-    SUPABASE_URL: 'https://sfxpmzicgpaxfntqleig.supabase.co',
-    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmeHBtemljZ3BheGZudHFsZWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2MDY0NjIsImV4cCI6MjA4MjE4MjQ2Mn0.337ohi8A4zu_6Hl1LpcPaWP8UkI5E4Om7ZgeU9_A8t4',
-    WIDGET_SIZES: {
-      small: { width: 48, height: 48 },
-      medium: { width: 64, height: 64 },
-      large: { width: 80, height: 80 },
-    },
-    CHAT_WINDOW_SIZE: { width: 380, height: 520 },
-    VOICE_WINDOW_SIZE: { width: 320, height: 400 },
-    ACTIVITY_POLL_INTERVAL_MS: 5000,
-    CONTEXT_WINDOW_MINUTES: 10,
-    HOURLY_SUMMARY_RETENTION_HOURS: 168,
-    DAILY_JOURNAL_RETENTION_DAYS: 90,
-    DEFAULT_SYNC_INTERVAL_MS: 5 * 60 * 1000,
-    SYNC_BATCH_SIZE: 100,
-    CLICK_DEBOUNCE_MS: 300,
-    DOUBLE_CLICK_MAX_MS: 400,
-    TRIPLE_CLICK_MAX_MS: 600,
-    SENSITIVE_APP_PATTERNS: [
-      'password', '1password', 'lastpass', 'keychain', 'bitwarden',
-      'dashlane', 'banking', 'medical', 'health',
-    ],
-    BROWSER_APPS: [
-      'Google Chrome', 'Firefox', 'Safari', 'Microsoft Edge',
-      'Arc', 'Brave Browser', 'Opera',
-    ],
-  };
+  // Import constants from actual source to avoid stale hardcoded values
+  let constants: any;
+
+  beforeAll(async () => {
+    constants = await import('../src/shared/constants');
+  });
 
   describe('APP_VERSION matches package.json', () => {
     it('version in constants matches package.json version', () => {
