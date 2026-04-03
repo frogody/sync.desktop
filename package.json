@@ -19,8 +19,11 @@
     "build:renderer": "vite build",
     "start": "electron .",
     "electron:dev": "wait-on tcp:5173 && electron .",
+    "pretest": "npm rebuild better-sqlite3 2>/dev/null",
     "test": "vitest run --config vitest.config.ts",
+    "posttest": "cd node_modules/better-sqlite3 && npx node-gyp rebuild --target=$(npx electron -v | tr -d v) --arch=arm64 --dist-url=https://electronjs.org/headers --runtime=electron 2>/dev/null",
     "test:watch": "vitest --config vitest.config.ts",
+    "postinstall": "cd node_modules/better-sqlite3 && npx node-gyp rebuild --target=$(npx electron -v | tr -d v) --arch=arm64 --dist-url=https://electronjs.org/headers --runtime=electron",
     "package": "electron-builder build --mac --win --publish never",
     "package:mac": "electron-builder build --mac --publish never",
     "package:win": "electron-builder build --win --publish never"
