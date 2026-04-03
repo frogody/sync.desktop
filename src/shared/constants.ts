@@ -92,7 +92,7 @@ export const SYNC_INITIAL_DELAY_MS = 30_000; // 30 seconds
 // ============================================================================
 
 export const TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions';
-export const TOGETHER_MODEL = 'moonshotai/Kimi-K2-Instruct';
+export const TOGETHER_MODEL = 'zai-org/GLM-5';
 
 // ============================================================================
 // Click Detection

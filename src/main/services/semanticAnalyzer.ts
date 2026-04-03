@@ -1,7 +1,7 @@
 /**
  * Semantic Analyzer Service
  *
- * Uses LLM (Together.ai Kimi-K2) to analyze screen content and extract:
+ * Uses LLM (Together.ai GLM-5) to analyze screen content and extract:
  * - Commitments and promises
  * - Action items and TODOs
  * - Email context (composing, recipients, subject)
