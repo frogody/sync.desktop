@@ -202,7 +202,7 @@ enum WidgetState: String, CaseIterable {
 // Package.swift dependency:
 // .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.21.0")
 
-// Model: Qwen2.5-1.5B-4bit (~800MB) or SmolLM2-1.7B-4bit (~600MB)
+// Model: Qwen3-1.7B Q4 (~1GB) — upgraded Apr 2026 from Qwen2.5-1.5B for better structured JSON
 // Bundled in app Resources/
 // Loaded once on startup, kept in memory
 
@@ -374,7 +374,7 @@ Responsibilities:
 
 ### Phase 4: MLX Integration
 1. Add `mlx-swift` dependency to Package.swift
-2. Bundle quantized model (Qwen2.5-1.5B-4bit or SmolLM2-1.7B-4bit)
+2. Bundle quantized model (Qwen3-1.7B Q4 — upgraded Apr 2026)
 3. Build `ActionClassifier` service
 4. Wire context events → classifier → notch display
 5. Confidence thresholds: >0.7 show, >0.5 send to cloud, <0.5 discard
@@ -393,10 +393,11 @@ Responsibilities:
 | Model | Size (Q4) | Speed (M2) | Quality | Recommendation |
 |-------|-----------|-------------|---------|----------------|
 | SmolLM2-1.7B | ~600MB | ~50ms | Good for classification | Best speed |
-| Qwen2.5-1.5B | ~800MB | ~80ms | Better structured output | **Recommended** |
+| ~~Qwen2.5-1.5B~~ | ~~~800MB~~ | ~~~80ms~~ | ~~Better structured output~~ | ~~Superseded~~ |
+| **Qwen3-1.7B** | **~1GB** | **~70ms** | **Best structured JSON** | **Production (Apr 2026)** |
 | Phi-3.5-mini-3.8B | ~1.8GB | ~150ms | Best quality | If app size isn't a concern |
 
-Start with Qwen2.5-1.5B — good balance of speed, size, and structured JSON output quality. Can upgrade to Phi-3.5-mini if classification accuracy needs improvement.
+NOTE (Apr 2026): Upgraded to Qwen3-1.7B for significantly improved structured JSON output quality. Two generations newer than Qwen2.5-1.5B with natively multimodal capabilities.
 
 ---
 

@@ -1,10 +1,10 @@
 ---
 license: apache-2.0
-license_link: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/blob/main/LICENSE
+license_link: https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/LICENSE
 language:
 - en
 pipeline_tag: text-generation
-base_model: Qwen/Qwen2.5-1.5B-Instruct
+base_model: Qwen/Qwen3-1.7B
 tags:
 - chat
 - mlx

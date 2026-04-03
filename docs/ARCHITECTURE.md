@@ -29,7 +29,7 @@ SYNC Desktop is a macOS Electron app that runs silently in the background, under
 |-----------|---------|----------|
 | **Activity Intelligence** | Track apps, windows, focus patterns, generate summaries | SQLite, polling, cron |
 | **Deep Context Engine** | OCR, accessibility capture, commitment detection, file monitoring | Vision.framework, AppleScript, regex classifiers |
-| **Action Pipeline** | Detect actionable opportunities, classify on-device, present in notch | MLX (Qwen2.5-1.5B), Swift UI, Supabase Realtime |
+| **Action Pipeline** | Detect actionable opportunities, classify on-device, present in notch | MLX (Qwen3-1.7B), Swift UI, Supabase Realtime |
 
 All data flows through a **local-first** architecture: everything is stored in SQLite first, then selectively synced to Supabase cloud.
 
@@ -68,7 +68,7 @@ All data flows through a **local-first** architecture: everything is stored in S
 ┌─────────────────────── NATIVE SWIFT PROCESS ────────────────────────┐
 │                                                                      │
 │  SYNCWidget.app                                                      │
-│  ├── MLX Classifier (Qwen2.5-1.5B-Instruct Q4, on-device)          │
+│  ├── MLX Classifier (Qwen3-1.7B Q4, on-device)          │
 │  ├── Metal Shaders (mlx.metallib)                                    │
 │  └── Notch UI (SwiftUI panels, animations)                           │
 │      ├── Action pill (slides from notch)                             │
@@ -220,7 +220,7 @@ This is the newest and most complex subsystem. It detects actionable opportuniti
      │
 2. NotchBridge sends context_event to SYNCWidget (stdin JSON)
      │
-3. MLX Classifier (Qwen2.5-1.5B-Instruct Q4) runs ON-DEVICE
+3. MLX Classifier (Qwen3-1.7B Q4) runs ON-DEVICE
    Classifies into: calendar_event | task_create | send_email | none
      │
 4. If actionable (confidence > threshold):
@@ -348,7 +348,7 @@ native/SYNCWidget/
 │       └── IdleView.swift          # Ambient SYNC orb
 └── Resources/
     ├── Info.plist
-    └── model/                      # Qwen2.5-1.5B-Instruct Q4 (828MB)
+    └── model/                      # Qwen3-1.7B Q4 (~1GB)
         ├── config.json
         ├── tokenizer.json
         └── model.safetensors
@@ -356,8 +356,8 @@ native/SYNCWidget/
 
 ### MLX Model
 
-- **Model**: Qwen2.5-1.5B-Instruct (Q4 quantized)
-- **Size**: ~828MB safetensors
+- **Model**: Qwen3-1.7B (Q4 quantized, upgraded Apr 2026 from Qwen2.5-1.5B)
+- **Size**: ~1GB safetensors
 - **Location**: Bundled in `SYNCWidget.app/Contents/Resources/model/`
 - **Metal Shaders**: Compiled to `mlx.metallib` during build
 - **Inference**: Fully on-device, no network calls
@@ -655,7 +655,7 @@ Composio supports 30+ services. To add execution for a new one:
 
 ### Improve the On-Device Classifier
 
-The MLX model (Qwen2.5-1.5B Q4) can be swapped for a better model:
+The MLX model (Qwen3-1.7B Q4) can be swapped for a better model:
 
 1. Download a new GGUF/safetensors model compatible with mlx-swift
 2. Place in `native/SYNCWidget/Resources/model/`

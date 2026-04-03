@@ -31,13 +31,15 @@ protocol ActionClassifierProtocol {
 /// Model is loaded once on startup and kept in memory for <300ms inference.
 ///
 /// # Model Setup
-/// Download and convert Qwen2.5-1.5B-Instruct for MLX:
+/// Download the pre-quantized Qwen3-1.7B MLX model:
 /// ```
-/// pip install mlx-lm
-/// python -m mlx_lm.convert --hf-path Qwen/Qwen2.5-1.5B-Instruct -q --q-bits 4
+/// huggingface-cli download mlx-community/Qwen3-1.7B-4bit --local-dir Resources/model/
 /// ```
-/// Copy the output directory contents to: `native/SYNCWidget/Resources/model/`
 /// Required files: config.json, tokenizer.json, tokenizer_config.json, *.safetensors
+///
+/// Note: Qwen3-1.7B (Qwen3ForCausalLM) is one generation newer than the previous
+/// Qwen2.5-1.5B-Instruct, with better reasoning and structured JSON output.
+/// Text-only architecture ensures compatibility with mlx-swift-lm.
 final class MLXActionClassifier: ActionClassifierProtocol {
     private var modelContainer: ModelContainer?
     private let inferenceQueue = DispatchQueue(label: "com.isyncso.widget.mlx", qos: .userInitiated)
