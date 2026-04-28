@@ -473,6 +473,61 @@ export class CloudSyncService {
    * Sync screen captures (from deepContextManager) to desktop_context_events.
    * These contain the real OCR/analysis data (activity type, commitments, etc.)
    */
+
+  // ── Phase 8 grounding helpers ─────────────────────────────────────────────
+
+  /** Applications whose screen content should never be NER-extracted.
+   *  Claude is iSyncSO's own AI — its task lists / audit notes are noise. */
+  private static readonly EXCLUDED_NER_APPS = new Set([
+    'claude', 'claude desktop', 'anthropic', 'cowork',
+  ]);
+
+  private isNerExcludedApp(appName: string): boolean {
+    return CloudSyncService.EXCLUDED_NER_APPS.has((appName || '').toLowerCase().trim());
+  }
+
+  /** Filter obviously bad NER output before it reaches the cloud. */
+  private isValidEntityName(name: string): boolean {
+    const n = (name || '').trim();
+    if (n.length < 3 || n.length > 120) return false;
+    // Pure punctuation / numbers / whitespace
+    if (/^[^a-zA-Z]*$/.test(n)) return false;
+    // SQL-ish / OCR fragments
+    if (/[<>]|_count_|_locate:|^s[,)]|^_/.test(n)) return false;
+    // Lowercase-starts-with-punctuation = partial NER capture
+    if (/^[a-z][),]/.test(n)) return false;
+    // Quoted-number noise
+    if (/^["']?\d+["']?$/.test(n)) return false;
+    return true;
+  }
+
+  /** macOS only: extract Chrome active tab URL via AppleScript.
+   *  Returns null if Chrome is not running or AppleScript fails. */
+  private getChromeActiveTabUrl(): string | null {
+    try {
+      // execSync is only available in the main process (Node/Electron)
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { execSync } = require('child_process');
+      const url = (execSync(
+        `osascript -e 'tell application "Google Chrome" to return URL of active tab of front window'`,
+        { timeout: 500, encoding: 'utf8' }
+      ) as string).trim();
+      return url && url.startsWith('http') ? url : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Extract a file path from a window title (e.g. "foo.ts — /Users/…"). */
+  private extractFilePathFromTitle(title: string | null | undefined): string | null {
+    if (!title) return null;
+    // Common pattern: "filename — /abs/path/to/file"
+    const m = title.match(/(?:[-—–]\s*)?(\/(?:Users|home|tmp|var|opt)[^\s]+\.[a-zA-Z0-9]+)/);
+    return m ? m[1] : null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   private async syncScreenCaptures(): Promise<number> {
     const user = getUser();
     if (!user?.id || !user?.companyId) return 0;
@@ -516,13 +571,23 @@ export class CloudSyncService {
           summary = `${analysis.appContext?.activity || 'Active'} in ${row.app_name}`;
         }
 
-        // Include action items and text snippet as entities
+        // Phase 8: skip NER for excluded apps (Claude, Anthropic, Cowork)
         const entities: any[] = [];
-        if (analysis.actionItems?.length > 0) {
+        if (!this.isNerExcludedApp(row.app_name) && analysis.actionItems?.length > 0) {
           for (const item of analysis.actionItems) {
-            entities.push({ type: 'action_item', text: item.text, priority: item.priority });
+            const name = item.text || '';
+            if (this.isValidEntityName(name)) {
+              entities.push({ type: 'action_item', text: name, priority: item.priority });
+            }
           }
         }
+
+        // Phase 8: Chrome URL via AppleScript, file path from title
+        let sourceUrl: string | null = null;
+        if ((row.app_name || '').toLowerCase().includes('chrome')) {
+          sourceUrl = this.getChromeActiveTabUrl();
+        }
+        const filePath = this.extractFilePathFromTitle(row.window_title);
 
         return {
           user_id: user.id,
@@ -532,6 +597,8 @@ export class CloudSyncService {
           source_window_title: row.window_title?.substring(0, 200) || null,
           summary: summary.substring(0, 500),
           entities,
+          source_url: sourceUrl,
+          file_path: filePath,
           intent: analysis.appContext?.activity || null,
           commitments,
           skill_signals: [],
