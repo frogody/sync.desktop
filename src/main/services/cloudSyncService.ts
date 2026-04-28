@@ -598,7 +598,7 @@ export class CloudSyncService {
           summary: summary.substring(0, 500),
           entities,
           source_url: sourceUrl,
-          file_path: filePath,
+          source_file_path: filePath,
           intent: analysis.appContext?.activity || null,
           commitments,
           skill_signals: [],
