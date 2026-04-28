@@ -88,6 +88,10 @@ export class CloudSyncService {
   private isSyncing: boolean = false;
   private lastSyncTime: Date | null = null;
   private syncErrors: string[] = [];
+  // Phase 9 — entity index cache for client-side pre-resolution (item 6)
+  private entityIndex: Map<string, string> = new Map(); // name.toLowerCase() → entity_id
+  private entityIndexLastRefresh: number = 0;
+  private readonly ENTITY_INDEX_TTL_MS = 30 * 60 * 1000; // 30 min
 
   constructor(
     summaryService: SummaryService,
@@ -519,6 +523,31 @@ export class CloudSyncService {
   }
 
   /** Extract a file path from a window title (e.g. "foo.ts — /Users/…"). */
+  private async refreshEntityIndexIfStale(): Promise<void> {
+    const now = Date.now();
+    if (now - this.entityIndexLastRefresh < this.ENTITY_INDEX_TTL_MS) return;
+    const user = getUser();
+    if (!user?.id || !user?.companyId) return;
+    try {
+      const res = await this.supabaseRequest(
+        `semantic_entities?select=entity_id,name&user_id=eq.${user.id}&confidence=gte.0.7&limit=2000`,
+        'GET',
+        undefined
+      );
+      if (res.data && Array.isArray(res.data)) {
+        const map = new Map<string, string>();
+        for (const r of res.data as { entity_id: string; name: string }[]) {
+          if (r.name && r.entity_id) map.set(r.name.toLowerCase().trim(), r.entity_id);
+        }
+        this.entityIndex = map;
+        this.entityIndexLastRefresh = now;
+        console.log(`[sync] Entity index refreshed: ${map.size} entries`);
+      }
+    } catch (err) {
+      console.warn('[sync] Entity index refresh failed:', (err as Error).message);
+    }
+  }
+
   private extractFilePathFromTitle(title: string | null | undefined): string | null {
     if (!title) return null;
     // Common pattern: "filename — /abs/path/to/file"
@@ -531,6 +560,8 @@ export class CloudSyncService {
   private async syncScreenCaptures(): Promise<number> {
     const user = getUser();
     if (!user?.id || !user?.companyId) return 0;
+    // Phase 9: refresh entity index (no-op if fresh)
+    await this.refreshEntityIndexIfStale();
 
     const db = getDatabase();
     const rows = db.prepare(`
@@ -589,6 +620,15 @@ export class CloudSyncService {
         }
         const filePath = this.extractFilePathFromTitle(row.window_title);
 
+        // Phase 9: pre-resolve entity_ids from local cache
+        const resolvedEntityIds: string[] = [];
+        for (const e of entities) {
+          const lc = (e.text || '').trim().toLowerCase();
+          if (lc && this.entityIndex.has(lc)) {
+            resolvedEntityIds.push(this.entityIndex.get(lc)!);
+          }
+        }
+
         return {
           user_id: user.id,
           company_id: user.companyId,
@@ -599,6 +639,7 @@ export class CloudSyncService {
           entities,
           source_url: sourceUrl,
           source_file_path: filePath,
+          resolved_entity_ids: resolvedEntityIds.length > 0 ? resolvedEntityIds : undefined,
           intent: analysis.appContext?.activity || null,
           commitments,
           skill_signals: [],
