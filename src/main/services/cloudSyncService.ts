@@ -550,9 +550,20 @@ export class CloudSyncService {
 
   private extractFilePathFromTitle(title: string | null | undefined): string | null {
     if (!title) return null;
-    // Common pattern: "filename — /abs/path/to/file"
-    const m = title.match(/(?:[-—–]\s*)?(\/(?:Users|home|tmp|var|opt)[^\s]+\.[a-zA-Z0-9]+)/);
-    return m ? m[1] : null;
+    // Absolute Unix path with extension — "main.ts — /Users/x/proj/main.ts"
+    const abs = title.match(/(\/(?:Users|home|tmp|var|opt)[^\s]+\.[a-zA-Z0-9]+)/);
+    if (abs) return abs[1];
+    // Home-relative path — VS Code / Cursor often show "~/proj/src/file.ts" or "~/proj"
+    const home = title.match(/(~\/[\w./-]+)/);
+    if (home) {
+      const p = home[1];
+      // If it includes a file extension, treat as a file path; otherwise it's the
+      // project root which is still useful grounding ("~/app.isyncso").
+      return p;
+    }
+    // Bare-project title with no path — VS Code shows "myproject — Visual Studio Code"
+    // when the workspace root is unsaved. Skip; nothing useful to capture.
+    return null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -620,12 +631,30 @@ export class CloudSyncService {
         }
         const filePath = this.extractFilePathFromTitle(row.window_title);
 
-        // Phase 9: pre-resolve entity_ids from local cache
+        // Phase 9 + R11 BUG-A fix: pre-resolve entity_ids by scanning the
+        // event's actual text (window title + OCR text_content) for known
+        // entity names from the local cache. The earlier loop only matched
+        // action_item OCR fragments ("items", "s") which are never semantic
+        // entity names, so resolved_entity_ids stayed at 0%. Substring scan
+        // over the real surface text catches "David de Bruin", "Bright Data",
+        // "Innovate", etc. when they appear on screen.
         const resolvedEntityIds: string[] = [];
-        for (const e of entities) {
-          const lc = (e.text || '').trim().toLowerCase();
-          if (lc && this.entityIndex.has(lc)) {
-            resolvedEntityIds.push(this.entityIndex.get(lc)!);
+        const seenIds = new Set<string>();
+        const scanText = `${row.window_title || ''}\n${row.text_content || ''}`.toLowerCase();
+        if (scanText.length > 1 && this.entityIndex.size > 0) {
+          const entries: Array<[string, string]> = [];
+          this.entityIndex.forEach((id, name) => entries.push([name, id]));
+          for (const [name, id] of entries) {
+            if (name.length < 3) continue; // skip noise entries
+            // word-boundary check so "ai" doesn't match "training" etc.
+            const re = new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|\\W)`, 'i');
+            if (re.test(scanText)) {
+              if (!seenIds.has(id)) {
+                seenIds.add(id);
+                resolvedEntityIds.push(id);
+                if (resolvedEntityIds.length >= 8) break; // cap per event
+              }
+            }
           }
         }
 
