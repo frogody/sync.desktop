@@ -553,16 +553,15 @@ export class CloudSyncService {
     // Absolute Unix path with extension — "main.ts — /Users/x/proj/main.ts"
     const abs = title.match(/(\/(?:Users|home|tmp|var|opt)[^\s]+\.[a-zA-Z0-9]+)/);
     if (abs) return abs[1];
-    // Home-relative path — VS Code / Cursor often show "~/proj/src/file.ts" or "~/proj"
+    // Home-relative path — VS Code / Cursor sometimes show "~/proj/src/file.ts" or "~/proj"
     const home = title.match(/(~\/[\w./-]+)/);
-    if (home) {
-      const p = home[1];
-      // If it includes a file extension, treat as a file path; otherwise it's the
-      // project root which is still useful grounding ("~/app.isyncso").
-      return p;
-    }
-    // Bare-project title with no path — VS Code shows "myproject — Visual Studio Code"
-    // when the workspace root is unsaved. Skip; nothing useful to capture.
+    if (home) return home[1];
+    // Bare filename — Cursor and VS Code often show just "CLAUDE.md" or "auth.ts"
+    // in the window title with no directory context. Less useful than a full
+    // path but still grounding signal — SYNC can say "you're editing auth.ts".
+    // Match: optional leading prefix, then <name>.<ext>, optional " — App Name" suffix.
+    const bare = title.match(/^(?:●\s*)?([\w.-]{2,80}\.[a-zA-Z0-9]{1,8})(?:\s+[-—–].+)?$/);
+    if (bare) return bare[1];
     return null;
   }
 
