@@ -667,7 +667,11 @@ export class CloudSyncService {
           entities,
           source_url: sourceUrl,
           source_file_path: filePath,
-          resolved_entity_ids: resolvedEntityIds.length > 0 ? resolvedEntityIds : undefined,
+          // Always include the key (never `undefined`): JSON.stringify drops
+          // undefined keys, so a batch mixing rows with/without resolved entities
+          // would have non-uniform object keys and PostgREST rejects the bulk
+          // insert with PGRST102 "All object keys must match". Empty = [].
+          resolved_entity_ids: resolvedEntityIds,
           intent: analysis.appContext?.activity || null,
           commitments,
           skill_signals: [],
