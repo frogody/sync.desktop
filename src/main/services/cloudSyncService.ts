@@ -438,14 +438,16 @@ export class CloudSyncService {
         company_id: user.companyId,
         event_type: event.eventType,
         source_application: event.source.application,
-        source_window_title: event.source.windowTitle?.substring(0, 200),
-        summary: event.semanticPayload.summary,
-        entities: event.semanticPayload.entities,
+        // Every key must always be present (never undefined) or JSON.stringify
+        // drops it and PostgREST rejects the mixed-key bulk insert (PGRST102).
+        source_window_title: event.source.windowTitle?.substring(0, 200) || null,
+        summary: event.semanticPayload.summary || null,
+        entities: event.semanticPayload.entities || [],
         intent: event.semanticPayload.intent || null,
         commitments: event.semanticPayload.commitments || [],
         skill_signals: event.semanticPayload.skillSignals || [],
-        confidence: event.confidence,
-        privacy_level: event.privacyLevel,
+        confidence: event.confidence ?? null,
+        privacy_level: event.privacyLevel || 'sync_allowed',
         created_at: new Date(event.timestamp).toISOString(),
       }));
 
