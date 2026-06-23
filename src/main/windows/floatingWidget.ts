@@ -24,12 +24,24 @@ let floatingWidget: BrowserWindow | null = null;
 let currentMode: WidgetMode = 'avatar';
 // When true, the native notch widget is active and this widget stays hidden
 let nativeWidgetActive: boolean = false;
+// When true, the app is genuinely quitting, so the window's close handler must
+// allow the close instead of minimizing to tray. Set from before-quit.
+let isQuitting: boolean = false;
 
 export function setNativeWidgetActive(active: boolean): void {
   nativeWidgetActive = active;
   if (active && floatingWidget && !floatingWidget.isDestroyed()) {
     floatingWidget.hide();
   }
+}
+
+/**
+ * Mark the app as quitting so the floating widget's close handler stops
+ * preventing the close (otherwise app.quit()/quitAndInstall() run cleanup but
+ * the window refuses to close, leaving a zombie process).
+ */
+export function setQuitting(): void {
+  isQuitting = true;
 }
 
 /**
@@ -173,8 +185,10 @@ export async function createFloatingWidget(): Promise<BrowserWindow> {
   // Make window click-through when just showing avatar
   floatingWidget.setIgnoreMouseEvents(false);
 
-  // Prevent window from being closed
+  // Keep the app alive in the tray when the user closes the window, but allow
+  // a genuine app quit to actually close it (see setQuitting / before-quit).
   floatingWidget.on('close', (event) => {
+    if (isQuitting) return;
     event.preventDefault();
     floatingWidget?.hide();
   });

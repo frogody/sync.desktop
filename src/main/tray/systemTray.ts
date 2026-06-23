@@ -285,7 +285,9 @@ export function updateTrayMenu(): void {
       label: 'Quit Sync',
       accelerator: 'CommandOrControl+Q',
       click: () => {
-        app.exit(0);
+        // Graceful quit: runs before-quit cleanup (flush DB, stop services).
+        // Safe now that the floating widget no longer blocks the close.
+        app.quit();
       },
     },
   ]);

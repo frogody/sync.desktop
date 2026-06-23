@@ -25,7 +25,7 @@ process.on('unhandledRejection', (reason) => {
 
 import { app, BrowserWindow, ipcMain, nativeImage, protocol, shell } from 'electron';
 import path from 'path';
-import { createFloatingWidget, getFloatingWidget, setNativeWidgetActive } from './windows/floatingWidget';
+import { createFloatingWidget, getFloatingWidget, setNativeWidgetActive, setQuitting } from './windows/floatingWidget';
 import { createSystemTray, updateTrayMenu } from './tray/systemTray';
 import { setupIpcHandlers } from './ipc/handlers';
 import { ActivityTracker } from './services/activityTracker';
@@ -609,6 +609,10 @@ app.on('window-all-closed', () => {
 // Cleanup on quit
 app.on('before-quit', () => {
   console.log('[main] Shutting down...');
+
+  // Let the floating widget's close handler actually close the window during a
+  // real quit (otherwise it minimizes to tray and the app never exits).
+  setQuitting();
 
   // Cancel the pending startup sync timer if we're quitting within its delay
   if (startupSyncTimeout) {
