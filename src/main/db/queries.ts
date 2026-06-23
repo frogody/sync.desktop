@@ -6,6 +6,7 @@
 
 import { getDatabase } from './database';
 import { ActivityLog, HourlySummary, DailyJournal } from '../../shared/types';
+import { safeJsonParse } from '../../shared/json';
 import type {
   Entity,
   EntityAlias,
@@ -215,7 +216,7 @@ export function getHourlySummaryByRange(
 
   return rows.map((row) => ({
     ...row,
-    appBreakdown: JSON.parse(row.appBreakdown || '[]'),
+    appBreakdown: safeJsonParse(row.appBreakdown, []),
     synced: row.synced === 1,
   }));
 }
@@ -238,7 +239,7 @@ export function getUnsyncedHourlySummaries(limit: number = 50): HourlySummary[] 
 
   return rows.map((row) => ({
     ...row,
-    appBreakdown: JSON.parse(row.appBreakdown || '[]'),
+    appBreakdown: safeJsonParse(row.appBreakdown, []),
     synced: false,
   }));
 }
@@ -339,8 +340,8 @@ export function getDailyJournalByDate(date: Date): DailyJournal | null {
 
   return {
     ...row,
-    highlights: JSON.parse(row.highlights || '[]'),
-    focusAreas: JSON.parse(row.focusAreas || '[]'),
+    highlights: safeJsonParse(row.highlights, []),
+    focusAreas: safeJsonParse(row.focusAreas, []),
     synced: row.synced === 1,
   };
 }
@@ -364,8 +365,8 @@ export function getUnsyncedDailyJournals(limit: number = 50): DailyJournal[] {
 
   return rows.map((row) => ({
     ...row,
-    highlights: JSON.parse(row.highlights || '[]'),
-    focusAreas: JSON.parse(row.focusAreas || '[]'),
+    highlights: safeJsonParse(row.highlights, []),
+    focusAreas: safeJsonParse(row.focusAreas, []),
     synced: false,
   }));
 }
@@ -397,8 +398,8 @@ export function getJournalHistory(days: number = 30): DailyJournal[] {
 
   return rows.map((row) => ({
     ...row,
-    highlights: JSON.parse(row.highlights || '[]'),
-    focusAreas: JSON.parse(row.focusAreas || '[]'),
+    highlights: safeJsonParse(row.highlights, []),
+    focusAreas: safeJsonParse(row.focusAreas, []),
     synced: row.synced === 1,
   }));
 }
@@ -456,7 +457,7 @@ export function getChatSession(sessionId: string): any[] | null {
 
   if (!row) return null;
 
-  return JSON.parse(row.messages);
+  return safeJsonParse(row.messages, []);
 }
 
 // ============================================================================
@@ -557,7 +558,7 @@ export function getEntityById(entityId: string): Entity | null {
   `).get(entityId) as any;
 
   if (!row) return null;
-  return { ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 };
+  return { ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 };
 }
 
 export function findEntityByName(name: string, type?: string): Entity[] {
@@ -574,7 +575,7 @@ export function findEntityByName(name: string, type?: string): Entity[] {
 
   const params = type ? [name, type] : [name];
   const rows = db.prepare(sql).all(...params) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 }));
 }
 
 export function findEntityByAlias(alias: string): Entity | null {
@@ -592,7 +593,7 @@ export function findEntityByAlias(alias: string): Entity | null {
   `).get(alias) as any;
 
   if (!row) return null;
-  return { ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 };
+  return { ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 };
 }
 
 export function getRecentEntities(limit: number = 50): Entity[] {
@@ -605,7 +606,7 @@ export function getRecentEntities(limit: number = 50): Entity[] {
     ORDER BY last_seen DESC
     LIMIT ?
   `).all(limit) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 }));
 }
 
 export function upsertEntityAlias(alias: Omit<EntityAlias, 'id'>): void {
@@ -693,7 +694,7 @@ export function getActivitiesByType(activityType: string, limit: number = 100): 
       duration_ms as durationMs, metadata, privacy_level as privacyLevel, synced, created_at as createdAt
     FROM semantic_activities WHERE activity_type = ? ORDER BY created_at DESC LIMIT ?
   `).all(activityType, limit) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 }));
 }
 
 export function getActivitiesByTimeRange(startTime: number, endTime: number): SemanticActivity[] {
@@ -704,7 +705,7 @@ export function getActivitiesByTimeRange(startTime: number, endTime: number): Se
       duration_ms as durationMs, metadata, privacy_level as privacyLevel, synced, created_at as createdAt
     FROM semantic_activities WHERE created_at >= ? AND created_at < ? ORDER BY created_at ASC
   `).all(startTime, endTime) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: row.synced === 1 }));
 }
 
 export function insertActivityTransition(transition: Omit<ActivityTransition, 'id'>): number {
@@ -786,8 +787,8 @@ export function getThreadById(threadId: string): SemanticThread | null {
   if (!row) return null;
   return {
     ...row,
-    primaryEntities: JSON.parse(row.primaryEntities || '[]'),
-    metadata: JSON.parse(row.metadata || '{}'),
+    primaryEntities: safeJsonParse(row.primaryEntities, []),
+    metadata: safeJsonParse(row.metadata, {}),
     synced: row.synced === 1,
   };
 }
@@ -805,8 +806,8 @@ export function getActiveThreads(): SemanticThread[] {
 
   return rows.map(row => ({
     ...row,
-    primaryEntities: JSON.parse(row.primaryEntities || '[]'),
-    metadata: JSON.parse(row.metadata || '{}'),
+    primaryEntities: safeJsonParse(row.primaryEntities, []),
+    metadata: safeJsonParse(row.metadata, {}),
     synced: row.synced === 1,
   }));
 }
@@ -885,7 +886,7 @@ export function getActiveIntents(): SemanticIntent[] {
     FROM semantic_intents WHERE resolved_at IS NULL
     ORDER BY created_at DESC
   `).all() as any[];
-  return rows.map(row => ({ ...row, evidence: JSON.parse(row.evidence || '[]'), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, evidence: safeJsonParse(row.evidence, []), synced: row.synced === 1 }));
 }
 
 export function getIntentByThread(threadId: string): SemanticIntent | null {
@@ -900,7 +901,7 @@ export function getIntentByThread(threadId: string): SemanticIntent | null {
   `).get(threadId) as any;
 
   if (!row) return null;
-  return { ...row, evidence: JSON.parse(row.evidence || '[]'), synced: row.synced === 1 };
+  return { ...row, evidence: safeJsonParse(row.evidence, []), synced: row.synced === 1 };
 }
 
 export function linkIntentToActivity(seq: Omit<IntentSequence, 'id'>): number {
@@ -947,7 +948,7 @@ export function getActivitiesForThread(threadId: string, limit: number = 50): Se
 
   return rows.map(row => ({
     ...row,
-    metadata: JSON.parse(row.metadata || '{}'),
+    metadata: safeJsonParse(row.metadata, {}),
     synced: row.synced === 1,
   }));
 }
@@ -969,8 +970,8 @@ export function getThreadsNeedingIntentFromDB(limit: number = 50): SemanticThrea
   `).all(limit) as any[];
   return rows.map(row => ({
     ...row,
-    primaryEntities: JSON.parse(row.primaryEntities || '[]'),
-    metadata: JSON.parse(row.metadata || '{}'),
+    primaryEntities: safeJsonParse(row.primaryEntities, []),
+    metadata: safeJsonParse(row.metadata, {}),
     synced: row.synced === 1,
   }));
 }
@@ -1010,7 +1011,7 @@ export function getSignaturesByCategory(category: string): BehavioralSignature[]
     FROM behavioral_signatures WHERE category = ?
     ORDER BY metric_name ASC
   `).all(category) as any[];
-  return rows.map(row => ({ ...row, currentValue: JSON.parse(row.currentValue), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, currentValue: safeJsonParse(row.currentValue, null), synced: row.synced === 1 }));
 }
 
 export function getAllCurrentSignatures(): BehavioralSignature[] {
@@ -1023,7 +1024,7 @@ export function getAllCurrentSignatures(): BehavioralSignature[] {
     FROM behavioral_signatures
     ORDER BY category ASC, metric_name ASC
   `).all() as any[];
-  return rows.map(row => ({ ...row, currentValue: JSON.parse(row.currentValue), synced: row.synced === 1 }));
+  return rows.map(row => ({ ...row, currentValue: safeJsonParse(row.currentValue, null), synced: row.synced === 1 }));
 }
 
 // ============================================================================
@@ -1039,7 +1040,7 @@ export function getUnsyncedEntities(limit: number = 100): Entity[] {
     FROM semantic_entities WHERE synced = 0 AND privacy_level = 'sync_allowed'
     ORDER BY updated_at ASC LIMIT ?
   `).all(limit) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: false }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: false }));
 }
 
 export function markEntitiesSynced(entityIds: string[]): void {
@@ -1058,7 +1059,7 @@ export function getUnsyncedActivities(limit: number = 100): SemanticActivity[] {
     FROM semantic_activities WHERE synced = 0 AND privacy_level = 'sync_allowed'
     ORDER BY created_at ASC LIMIT ?
   `).all(limit) as any[];
-  return rows.map(row => ({ ...row, metadata: JSON.parse(row.metadata || '{}'), synced: false }));
+  return rows.map(row => ({ ...row, metadata: safeJsonParse(row.metadata, {}), synced: false }));
 }
 
 export function markActivitiesSynced(activityIds: string[]): void {
@@ -1080,8 +1081,8 @@ export function getUnsyncedThreads(limit: number = 100): SemanticThread[] {
   `).all(limit) as any[];
   return rows.map(row => ({
     ...row,
-    primaryEntities: JSON.parse(row.primaryEntities || '[]'),
-    metadata: JSON.parse(row.metadata || '{}'),
+    primaryEntities: safeJsonParse(row.primaryEntities, []),
+    metadata: safeJsonParse(row.metadata, {}),
     synced: false,
   }));
 }
@@ -1103,7 +1104,7 @@ export function getUnsyncedIntents(limit: number = 100): SemanticIntent[] {
     FROM semantic_intents WHERE synced = 0 AND privacy_level = 'sync_allowed'
     ORDER BY updated_at ASC LIMIT ?
   `).all(limit) as any[];
-  return rows.map(row => ({ ...row, evidence: JSON.parse(row.evidence || '[]'), synced: false }));
+  return rows.map(row => ({ ...row, evidence: safeJsonParse(row.evidence, []), synced: false }));
 }
 
 export function markIntentsSynced(intentIds: string[]): void {
@@ -1123,7 +1124,7 @@ export function getUnsyncedSignatures(limit: number = 100): BehavioralSignature[
     FROM behavioral_signatures WHERE synced = 0 AND privacy_level = 'sync_allowed'
     ORDER BY computed_at ASC LIMIT ?
   `).all(limit) as any[];
-  return rows.map(row => ({ ...row, currentValue: JSON.parse(row.currentValue), synced: false }));
+  return rows.map(row => ({ ...row, currentValue: safeJsonParse(row.currentValue, null), synced: false }));
 }
 
 export function markSignaturesSynced(signatureIds: string[]): void {
