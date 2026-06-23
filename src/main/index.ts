@@ -80,6 +80,7 @@ let intentClassifier: IntentClassifier | null = null;
 let signatureComputer: SignatureComputer | null = null;
 let mainWindow: BrowserWindow | null = null;
 let pendingDeepLink: string | null = null;
+let startupSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // ============================================================================
 // Single Instance Lock
@@ -478,16 +479,26 @@ app.whenReady().then(async () => {
   // On startup: try to generate summary for last hour (may have been missed)
   // and trigger an immediate sync if authenticated
   if (summaryService) {
-    summaryService.saveLastHourSummary().catch(() => {});
+    summaryService.saveLastHourSummary().catch((err) => {
+      console.error('[main] Startup last-hour summary failed:', err);
+    });
   }
-  setTimeout(async () => {
-    if (cloudSyncService && cloudSyncService.isAuthenticated()) {
-      console.log('[main] Startup sync: generating current hour summary and syncing...');
-      if (summaryService) {
-        await summaryService.saveOrUpdateCurrentHourSummary().catch(() => {});
+  // Tracked so before-quit can cancel it if the app is closed within the delay
+  startupSyncTimeout = setTimeout(async () => {
+    startupSyncTimeout = null;
+    try {
+      if (cloudSyncService && cloudSyncService.isAuthenticated()) {
+        console.log('[main] Startup sync: generating current hour summary and syncing...');
+        if (summaryService) {
+          await summaryService.saveOrUpdateCurrentHourSummary().catch((err) => {
+            console.error('[main] Startup current-hour summary failed:', err);
+          });
+        }
+        const result = await cloudSyncService.forceSync();
+        console.log('[main] Startup sync result:', result);
       }
-      const result = await cloudSyncService.forceSync();
-      console.log('[main] Startup sync result:', result);
+    } catch (err) {
+      console.error('[main] Startup sync failed:', err);
     }
   }, 10000); // Wait 10s for app to settle
 
@@ -598,6 +609,12 @@ app.on('window-all-closed', () => {
 // Cleanup on quit
 app.on('before-quit', () => {
   console.log('[main] Shutting down...');
+
+  // Cancel the pending startup sync timer if we're quitting within its delay
+  if (startupSyncTimeout) {
+    clearTimeout(startupSyncTimeout);
+    startupSyncTimeout = null;
+  }
 
   // Stop action service
   if (actionService) {
