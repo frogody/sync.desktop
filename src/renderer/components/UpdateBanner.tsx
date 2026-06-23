@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'downloaded';
 
-const electron = (window as any).electron;
+const electron = window.electron;
 
 export default function UpdateBanner() {
   const [state, setState] = useState<UpdateState>('idle');

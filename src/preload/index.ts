@@ -153,6 +153,37 @@ export interface ElectronAPI {
     error?: string;
   }>;
 
+  // Updates
+  checkForUpdates: () => Promise<{
+    success: boolean;
+    data?: { available: boolean; version?: string };
+    error?: string;
+  }>;
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+  installUpdate: () => Promise<{ success: boolean; error?: string }>;
+  getUpdateStatus: () => Promise<{
+    success: boolean;
+    data?: {
+      currentVersion: string;
+      available: boolean;
+      downloaded: boolean;
+      downloading: boolean;
+      checking: boolean;
+      progress: number;
+      version: string | null;
+    };
+    error?: string;
+  }>;
+  onUpdateAvailable: (
+    callback: (data: { version: string; releaseDate?: string; releaseNotes?: unknown }) => void
+  ) => () => void;
+  onUpdateProgress: (
+    callback: (data: { percent: number; bytesPerSecond?: number; transferred?: number; total?: number }) => void
+  ) => () => void;
+  onUpdateDownloaded: (
+    callback: (data: { version: string }) => void
+  ) => () => void;
+
   // Platform
   platform: string;
 }
@@ -238,6 +269,27 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_SIGNATURES),
   getActivityDistribution: (days) =>
     ipcRenderer.invoke(IPC_CHANNELS.SEMANTIC_GET_ACTIVITY_DISTRIBUTION, days),
+
+  // Updates
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK),
+  downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
+  installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),
+  getUpdateStatus: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STATUS),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.UPDATE_AVAILABLE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_AVAILABLE, handler);
+  },
+  onUpdateProgress: (callback) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.UPDATE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_PROGRESS, handler);
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.UPDATE_DOWNLOADED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_DOWNLOADED, handler);
+  },
 
   // Platform
   platform: process.platform,
