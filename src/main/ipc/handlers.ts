@@ -514,6 +514,19 @@ export function setupIpcHandlers(
         return { success: false, error: `Blocked protocol: ${parsed.protocol}. Only http: and https: are allowed.` };
       }
 
+      // SEC-005: Restrict to the iSyncSO web app domain. The only links the
+      // renderer opens are app.isyncso.com pages (some with a server-provided
+      // redirect path), so allow that registrable domain and its subdomains
+      // and block everything else — a compromised backend can't redirect the
+      // user to an arbitrary phishing host.
+      const webHost = new URL(WEB_APP_URL).hostname;
+      const baseDomain = webHost.split('.').slice(-2).join('.');
+      const host = parsed.hostname;
+      const allowed = host === baseDomain || host === webHost || host.endsWith(`.${baseDomain}`);
+      if (!allowed) {
+        return { success: false, error: `Blocked host: ${host} is not an allowed destination.` };
+      }
+
       await shell.openExternal(url);
       return { success: true };
     } catch (error) {

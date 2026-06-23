@@ -375,15 +375,21 @@ describe('IPC Handlers', () => {
   // --------------------------------------------------------------------------
 
   describe('SYSTEM_OPEN_EXTERNAL', () => {
-    it('allows https URLs', async () => {
-      const result = await invokeHandler(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, 'https://example.com');
+    it('allows https URLs on the iSyncSO domain', async () => {
+      const result = await invokeHandler(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, 'https://app.isyncso.com');
       expect(result.success).toBe(true);
-      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com');
+      expect(shell.openExternal).toHaveBeenCalledWith('https://app.isyncso.com');
     });
 
-    it('allows http URLs', async () => {
-      const result = await invokeHandler(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, 'http://localhost:3000');
+    it('allows subdomains of the iSyncSO domain', async () => {
+      const result = await invokeHandler(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, 'https://app.isyncso.com/desktop-auth?state=x');
       expect(result.success).toBe(true);
+    });
+
+    it('blocks non-allowlisted hosts', async () => {
+      const result = await invokeHandler(IPC_CHANNELS.SYSTEM_OPEN_EXTERNAL, 'https://example.com');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Blocked host');
     });
 
     it('blocks file:// protocol', async () => {
