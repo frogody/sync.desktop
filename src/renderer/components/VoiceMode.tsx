@@ -8,6 +8,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config';
+import { decodeJwt } from '../lib/jwt';
 
 interface VoiceModeProps {
   onClose: () => void;
@@ -26,7 +27,10 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [sessionId] = useState(() => `voice_${Date.now()}`);
+  // Falls back to a session-scoped id until auth resolves; switches to the
+  // shared `sync_user_${uid}` format so voice and chat share conversation
+  // context (matching ChatWidget).
+  const [sessionId, setSessionId] = useState(() => `voice_${Date.now()}`);
   const [activityContext, setActivityContext] = useState<ActivityContext | null>(null);
 
   const recognitionRef = useRef<any>(null);
@@ -41,6 +45,26 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
+    };
+  }, []);
+
+  // Derive a user-based session id so voice shares conversation context
+  // with chat (sync_user_${uid}); keep the fallback id if unauthenticated.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await window.electron.getAuthStatus();
+        if (cancelled) return;
+        const token = result.data?.accessToken;
+        const uid = token ? decodeJwt(token)?.sub : undefined;
+        if (uid) setSessionId(`sync_user_${uid}`);
+      } catch (error) {
+        console.error('Failed to resolve voice session id:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 

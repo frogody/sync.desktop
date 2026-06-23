@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppSettings } from '../../shared/types';
+import { WEB_APP_URL } from '../config';
 
 interface SettingsProps {
   onClose: () => void;
@@ -230,11 +231,11 @@ export default function Settings({ onClose }: SettingsProps) {
             <div className="pt-2 space-y-2">
               <ExternalLink
                 label="Open Web App"
-                url="https://app.isyncso.com"
+                url={WEB_APP_URL}
               />
               <ExternalLink
                 label="Privacy Policy"
-                url="https://app.isyncso.com/privacy"
+                url={`${WEB_APP_URL}/privacy`}
               />
             </div>
           </div>

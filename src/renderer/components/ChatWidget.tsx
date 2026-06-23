@@ -7,27 +7,11 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, WEB_APP_URL } from '../config';
 import SyncAvatarMini from './SyncAvatarMini';
 import UpdateBanner from './UpdateBanner';
 import { useSyncState } from '../context/SyncStateContext';
-
-// Decode JWT to get user info
-function decodeJwt(token: string): { sub?: string; email?: string; user_metadata?: { full_name?: string; name?: string } } | null {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
+import { decodeJwt } from '../lib/jwt';
 
 // Strip ACTION tags from content for display
 function stripActionTags(content: string): string {
@@ -682,7 +666,7 @@ export default function ChatWidget({ onClose, onDashboard }: ChatWidgetProps) {
                   <button
                     onClick={() =>
                       window.electron.openExternal(
-                        `https://app.isyncso.com${msg.actionExecuted!.redirectUrl}`
+                        `${WEB_APP_URL}${msg.actionExecuted!.redirectUrl}`
                       )
                     }
                     className="text-sync-teal-light text-xs hover:underline focus-visible:ring-2 focus-visible:ring-sync-teal focus-visible:outline-none rounded"

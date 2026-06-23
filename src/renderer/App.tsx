@@ -13,6 +13,7 @@ import LoginScreen from './components/LoginScreen';
 import PermissionsSetup from './components/PermissionsSetup';
 import SemanticDashboard from './components/SemanticDashboard';
 import Settings from './components/Settings';
+import { WEB_APP_URL } from './config';
 
 type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings';
 type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
@@ -109,7 +110,7 @@ export default function App() {
       } else if (newCount === 2) {
         window.electron.expandWindow('voice');
       } else if (newCount >= 3) {
-        window.electron.openExternal('https://app.isyncso.com');
+        window.electron.openExternal(WEB_APP_URL);
       }
       setClickCount(0);
     }, 400);
