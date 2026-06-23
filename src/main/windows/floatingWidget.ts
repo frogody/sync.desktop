@@ -76,6 +76,12 @@ export function expandForLogin(): void {
   }, 100);
 
   floatingWidget.webContents.send('window:mode-change', 'chat');
+
+  // Restore window controls for the login window (command bar hides them)
+  if (process.platform === 'darwin') {
+    try { floatingWidget.setWindowButtonVisibility(true); } catch { /* ignore */ }
+  }
+
   console.log('[widget] expandForLogin: showing Electron window for auth');
 }
 
@@ -407,6 +413,11 @@ export function expandToCommand(): void {
   floatingWidget.hide();
   floatingWidget.setBounds({ x, y, width, height });
   floatingWidget.webContents.send('window:mode-change', 'command');
+
+  // Hide the macOS traffic-light buttons for a clean Spotlight look
+  if (process.platform === 'darwin') {
+    try { floatingWidget.setWindowButtonVisibility(false); } catch { /* ignore */ }
+  }
 
   setTimeout(() => {
     floatingWidget?.show();

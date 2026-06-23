@@ -148,6 +148,17 @@ export default function App() {
     );
   }
 
+  // The command bar is a global-shortcut surface — it should open in any auth
+  // state (it sends via the anon path when logged out and can prompt sign-in),
+  // so render it before the login/permissions gates.
+  if (mode === 'command') {
+    return (
+      <div className="w-full h-full">
+        <CommandBar />
+      </div>
+    );
+  }
+
   // Show login screen if not authenticated
   if (appState === 'login') {
     return (
@@ -175,8 +186,6 @@ export default function App() {
             <FloatingAvatar onClick={handleAvatarClick} />
           </div>
         )}
-
-        {mode === 'command' && <CommandBar />}
 
         {mode === 'chat' && !showDashboard && (
           <ChatWidget onClose={handleClose} onDashboard={() => setShowDashboard(true)} />

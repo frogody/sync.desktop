@@ -159,7 +159,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showInDock: true,
   launchAtLogin: true,
   // Keep in sync with COMMAND_BAR_SHORTCUT_DEFAULT in constants.ts
-  commandBarShortcut: 'CommandOrControl+Shift+Space',
+  commandBarShortcut: 'Alt+Space',
   voiceEnabled: true,
   voiceName: 'tara',
   trackBrowserUrls: true,

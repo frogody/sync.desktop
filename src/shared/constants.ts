@@ -54,9 +54,10 @@ export const COMMAND_WINDOW_SIZE = {
 export const COMMAND_WINDOW_MAX_HEIGHT = 560;
 
 // Default global shortcut that toggles the command bar. Configurable in Settings.
-// A safer default than Shift+Backspace (which would swallow "delete" system-wide);
-// users can rebind it — including to 'Shift+Backspace' — in Settings.
-export const COMMAND_BAR_SHORTCUT_DEFAULT = 'CommandOrControl+Shift+Space';
+// Option+Space (⌥Space) — a simple, launcher-standard hotkey. (A pure modifier
+// combo like Shift+Option can't be registered as an OS global shortcut, which
+// requires at least one non-modifier key.) Users can rebind it in Settings.
+export const COMMAND_BAR_SHORTCUT_DEFAULT = 'Alt+Space';
 
 // ============================================================================
 // Activity Tracking Configuration
