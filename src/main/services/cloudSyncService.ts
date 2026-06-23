@@ -92,6 +92,10 @@ export class CloudSyncService {
   private entityIndex: Map<string, string> = new Map(); // name.toLowerCase() → entity_id
   private entityIndexLastRefresh: number = 0;
   private readonly ENTITY_INDEX_TTL_MS = 30 * 60 * 1000; // 30 min
+  // Compiled word-boundary regexes per entity name, reused across rows so a
+  // sync batch doesn't recompile the same regex for every screen capture.
+  // Cleared whenever the entity index is refreshed.
+  private entityRegexCache: Map<string, RegExp> = new Map();
 
   constructor(
     summaryService: SummaryService,
@@ -525,6 +529,19 @@ export class CloudSyncService {
   }
 
   /** Extract a file path from a window title (e.g. "foo.ts — /Users/…"). */
+  /**
+   * Word-boundary regex for an entity name, compiled once and cached.
+   * Avoids recompiling the same regex for every screen-capture row in a batch.
+   */
+  private getEntityNameRegex(name: string): RegExp {
+    let re = this.entityRegexCache.get(name);
+    if (!re) {
+      re = new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|\\W)`, 'i');
+      this.entityRegexCache.set(name, re);
+    }
+    return re;
+  }
+
   private async refreshEntityIndexIfStale(): Promise<void> {
     const now = Date.now();
     if (now - this.entityIndexLastRefresh < this.ENTITY_INDEX_TTL_MS) return;
@@ -543,6 +560,7 @@ export class CloudSyncService {
         }
         this.entityIndex = map;
         this.entityIndexLastRefresh = now;
+        this.entityRegexCache.clear();
         console.log(`[sync] Entity index refreshed: ${map.size} entries`);
       }
     } catch (err) {
@@ -648,7 +666,7 @@ export class CloudSyncService {
           for (const [name, id] of entries) {
             if (name.length < 3) continue; // skip noise entries
             // word-boundary check so "ai" doesn't match "training" etc.
-            const re = new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|\\W)`, 'i');
+            const re = this.getEntityNameRegex(name);
             if (re.test(scanText)) {
               if (!seenIds.has(id)) {
                 seenIds.add(id);
@@ -693,8 +711,10 @@ export class CloudSyncService {
         console.error('[sync] Screen captures batch failed:', error.message);
         this.syncErrors.push(`Screen captures: ${error.message}`);
       } else {
-        const ids = batch.map((r: any) => r.id);
-        db.prepare(`UPDATE screen_captures SET synced = 1 WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
+        const ids = batch.map((r: any) => r.id).filter((id: unknown) => id != null);
+        if (ids.length > 0) {
+          db.prepare(`UPDATE screen_captures SET synced = 1 WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
+        }
         syncedCount += batch.length;
       }
     }
