@@ -28,29 +28,29 @@ export default function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const result = await (window as any).electron.getAuthStatus();
+        const result = await window.electron.getAuthStatus();
         if (result.data?.isAuthenticated) {
           // Authenticated — check if permissions are granted
-          if ((window as any).electron.platform === 'darwin') {
-            const permResult = await (window as any).electron.checkPermissions();
+          if (window.electron.platform === 'darwin') {
+            const permResult = await window.electron.checkPermissions();
             const perms = permResult?.data;
             if (perms && !perms.accessibility) {
               // Missing required permissions — show setup
               setAppState('permissions');
-              (window as any).electron.showLoginWindow();
+              window.electron.showLoginWindow();
               return;
             }
           }
           setAppState('authenticated');
-          (window as any).electron.collapseWindow();
+          window.electron.collapseWindow();
         } else {
           setAppState('login');
-          (window as any).electron.showLoginWindow();
+          window.electron.showLoginWindow();
         }
       } catch (error) {
         console.error('Failed to check auth:', error);
         setAppState('login');
-        (window as any).electron.showLoginWindow();
+        window.electron.showLoginWindow();
       }
     };
 
@@ -59,9 +59,9 @@ export default function App() {
 
   // Handle successful login — check permissions next
   const handleLoginSuccess = useCallback(async () => {
-    if ((window as any).electron.platform === 'darwin') {
+    if (window.electron.platform === 'darwin') {
       try {
-        const permResult = await (window as any).electron.checkPermissions();
+        const permResult = await window.electron.checkPermissions();
         const perms = permResult?.data;
         if (perms && !perms.accessibility) {
           setAppState('permissions');
@@ -73,19 +73,19 @@ export default function App() {
     }
     setAppState('authenticated');
     setMode('avatar');
-    (window as any).electron.collapseWindow();
+    window.electron.collapseWindow();
   }, []);
 
   // Handle permissions setup complete
   const handlePermissionsComplete = useCallback(() => {
     setAppState('authenticated');
     setMode('avatar');
-    (window as any).electron.collapseWindow();
+    window.electron.collapseWindow();
   }, []);
 
   // Listen for mode changes from main process
   useEffect(() => {
-    const unsubscribe = (window as any).electron.onModeChange((newMode: WidgetMode) => {
+    const unsubscribe = window.electron.onModeChange((newMode: WidgetMode) => {
       setMode(newMode);
     });
 
@@ -105,11 +105,11 @@ export default function App() {
     // Set new timer to process clicks
     const timer = setTimeout(() => {
       if (newCount === 1) {
-        (window as any).electron.expandWindow('chat');
+        window.electron.expandWindow('chat');
       } else if (newCount === 2) {
-        (window as any).electron.expandWindow('voice');
+        window.electron.expandWindow('voice');
       } else if (newCount >= 3) {
-        (window as any).electron.openExternal('https://app.isyncso.com');
+        window.electron.openExternal('https://app.isyncso.com');
       }
       setClickCount(0);
     }, 400);
@@ -119,7 +119,7 @@ export default function App() {
 
   // Handle close/collapse
   const handleClose = useCallback(() => {
-    (window as any).electron.collapseWindow();
+    window.electron.collapseWindow();
     setMode('avatar');
   }, []);
 

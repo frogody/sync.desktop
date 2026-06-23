@@ -27,7 +27,7 @@ export default function Settings({ onClose }: SettingsProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const result = await (window as any).electron.getSettings();
+        const result = await window.electron.getSettings();
         if (result.success && result.data) {
           setSettings(result.data);
         } else {
@@ -42,7 +42,7 @@ export default function Settings({ onClose }: SettingsProps) {
 
     const loadVersion = async () => {
       try {
-        const info = await (window as any).electron.getSystemInfo();
+        const info = await window.electron.getSystemInfo();
         if (info.success && info.data?.version) {
           setVersion(info.data.version);
         }
@@ -65,7 +65,7 @@ export default function Settings({ onClose }: SettingsProps) {
     setSaving(true);
     setError(null);
     try {
-      const result = await (window as any).electron.setSettings(settings);
+      const result = await window.electron.setSettings(settings);
       if (result.success) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -343,7 +343,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function ExternalLink({ label, url }: { label: string; url: string }) {
-  const open = () => (window as any).electron.openExternal(url);
+  const open = () => window.electron.openExternal(url);
   return (
     <button
       onClick={open}

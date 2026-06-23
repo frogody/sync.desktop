@@ -79,7 +79,7 @@ export interface ElectronAPI {
     data?: { isAuthenticated: boolean; accessToken?: string };
   }>;
   onAuthCallback: (
-    callback: (data: { success: boolean; token?: string }) => void
+    callback: (data: { success: boolean; token?: string; error?: string }) => void
   ) => () => void;
   offAuthCallback: (callback: () => void) => void;
 
@@ -199,8 +199,10 @@ const electronAPI: ElectronAPI = {
   logout: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT),
   getAuthStatus: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_STATUS),
   onAuthCallback: (callback) => {
-    const handler = (_event: any, data: { success: boolean; token?: string }) =>
-      callback(data);
+    const handler = (
+      _event: any,
+      data: { success: boolean; token?: string; error?: string }
+    ) => callback(data);
     ipcRenderer.on(IPC_CHANNELS.AUTH_CALLBACK, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_CALLBACK, handler);
   },

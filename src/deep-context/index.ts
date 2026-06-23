@@ -32,8 +32,14 @@ import type {
 } from './types';
 
 // Re-export for convenience
-export { DeepContextEngineConfig, DEFAULT_ENGINE_CONFIG } from './types';
-export type { ContextEvent, Commitment, SkillSignal, DailySummary } from './types';
+export { DEFAULT_ENGINE_CONFIG } from './types';
+export type {
+  DeepContextEngineConfig,
+  ContextEvent,
+  Commitment,
+  SkillSignal,
+  DailySummary,
+} from './types';
 
 // ============================================================================
 // Deep Context Engine

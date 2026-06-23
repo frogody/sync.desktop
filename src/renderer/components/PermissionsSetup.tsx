@@ -12,8 +12,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+type PermissionId = 'accessibility' | 'screenCapture';
+
 interface PermissionItem {
-  id: string;
+  id: PermissionId;
   label: string;
   description: string;
   required: boolean;
@@ -62,12 +64,13 @@ export default function PermissionsSetup({ onComplete }: Props) {
     (async () => {
       setChecking(true);
       try {
-        const result = await (window as any).electron.checkPermissions();
+        const result = await window.electron.checkPermissions();
         if (result?.data) {
+          const data = result.data;
           setPermissions((prev) =>
             prev.map((p) => ({
               ...p,
-              granted: result.data[p.id] || false,
+              granted: data[p.id] || false,
             }))
           );
         }
@@ -83,11 +86,12 @@ export default function PermissionsSetup({ onComplete }: Props) {
     const interval = setInterval(async () => {
       setChecking(true);
       try {
-        const result = await (window as any).electron.checkPermissions();
+        const result = await window.electron.checkPermissions();
         if (result?.data) {
+          const data = result.data;
           const newPerms = permissionsRef.current.map((p) => ({
             ...p,
-            granted: result.data[p.id] || false,
+            granted: data[p.id] || false,
           }));
 
           // Check if any permission the user opened settings for is still not granted
@@ -139,7 +143,7 @@ export default function PermissionsSetup({ onComplete }: Props) {
   const handleOpenSettings = async (permissionId: string) => {
     openedSettingsRef.current = { ...openedSettingsRef.current, [permissionId]: true };
     pollsSinceOpenedRef.current = 0;
-    await (window as any).electron.requestPermission(permissionId);
+    await window.electron.requestPermission(permissionId);
   };
 
   const handleContinue = () => {
@@ -307,12 +311,13 @@ export default function PermissionsSetup({ onComplete }: Props) {
               onClick={async () => {
                 setChecking(true);
                 try {
-                  const result = await (window as any).electron.checkPermissions();
+                  const result = await window.electron.checkPermissions();
                   if (result?.data) {
+                    const data = result.data;
                     setPermissions((prev) =>
                       prev.map((p) => ({
                         ...p,
-                        granted: result.data[p.id] || false,
+                        granted: data[p.id] || false,
                       }))
                     );
                   }
