@@ -20,6 +20,7 @@ import {
   hideCommandBar,
   setCommandWindowHeight,
   getCurrentMode,
+  setSuppressCommandBlur,
 } from '../windows/floatingWidget';
 import { captureRegion } from '../services/regionCapture';
 import { registerCommandShortcut } from '../shortcuts';
@@ -159,6 +160,9 @@ export function setupIpcHandlers(
   // Interactive drag-to-select region screenshot. Hides the command bar during
   // selection so it doesn't cover the target, then restores it.
   ipcMain.handle(IPC_CHANNELS.SYSTEM_CAPTURE_REGION, async () => {
+    // Suppress close-on-blur: hiding the bar + the screencapture overlay both
+    // blur the window, which would otherwise dismiss the command bar mid-capture.
+    setSuppressCommandBlur(true);
     try {
       const widget = getFloatingWidget();
       const wasVisible = !!widget && widget.isVisible();
@@ -177,6 +181,9 @@ export function setupIpcHandlers(
       return { success: true, data: { dataUrl: result.dataUrl, bytes: result.bytes } };
     } catch (error) {
       return { success: false, error: String(error) };
+    } finally {
+      // Re-enable after the bar has had a moment to regain focus
+      setTimeout(() => setSuppressCommandBlur(false), 300);
     }
   });
 

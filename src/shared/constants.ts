@@ -3,7 +3,7 @@
 // ============================================================================
 
 export const APP_NAME = 'Sync';
-export const APP_VERSION = '2.5.0';
+export const APP_VERSION = '2.5.1';
 export const APP_PROTOCOL = 'isyncso';
 
 // ============================================================================

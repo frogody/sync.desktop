@@ -29,6 +29,13 @@ let nativeWidgetActive: boolean = false;
 // Remembers whether the notch widget was active before the command bar
 // temporarily took over, so we can restore it when the command bar closes.
 let commandRestoreNative: boolean = false;
+// When true, suppress close-on-blur for the command bar (e.g. while an
+// interactive region screenshot is in progress and the bar is intentionally hidden).
+let suppressCommandBlur: boolean = false;
+
+export function setSuppressCommandBlur(value: boolean): void {
+  suppressCommandBlur = value;
+}
 
 export function setNativeWidgetActive(active: boolean): void {
   nativeWidgetActive = active;
@@ -188,6 +195,21 @@ export async function createFloatingWidget(): Promise<BrowserWindow> {
   floatingWidget.on('close', (event) => {
     event.preventDefault();
     floatingWidget?.hide();
+  });
+
+  // Close the command bar when it loses focus (Spotlight behavior). Without
+  // this it can get stranded on screen — it has no window controls and Esc
+  // only works while focused. Suppressed during interactive region capture,
+  // when the bar is intentionally hidden and refocus happens out of band.
+  floatingWidget.on('blur', () => {
+    if (
+      currentMode === 'command' &&
+      !suppressCommandBlur &&
+      floatingWidget &&
+      !floatingWidget.isDestroyed()
+    ) {
+      hideCommandBar();
+    }
   });
 
   // Load the renderer
