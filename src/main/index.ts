@@ -43,6 +43,7 @@ import { ActionService } from './services/actionService';
 import { EntityRegistry, SemanticProcessor, ThreadManager, IntentClassifier, SignatureComputer } from './services/semantic';
 import { initDatabase, closeDatabase } from './db/database';
 import { APP_PROTOCOL, WEB_APP_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../shared/constants';
+import { registerCommandShortcut, unregisterCommandShortcut } from './shortcuts';
 import {
   store,
   StoreSchema,
@@ -587,6 +588,9 @@ app.whenReady().then(async () => {
   // Initialize auto-updater (only in production)
   initAutoUpdater();
 
+  // Register the global shortcut that toggles the command bar
+  registerCommandShortcut(getSettings().commandBarShortcut);
+
   console.log('[main] SYNC Desktop started successfully');
 });
 
@@ -615,6 +619,9 @@ app.on('before-quit', () => {
     clearTimeout(startupSyncTimeout);
     startupSyncTimeout = null;
   }
+
+  // Release the global command-bar shortcut
+  unregisterCommandShortcut();
 
   // Stop action service
   if (actionService) {

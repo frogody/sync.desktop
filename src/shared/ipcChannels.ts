@@ -10,6 +10,8 @@ export const IPC_CHANNELS = {
   WINDOW_MOVE: 'window:move',
   WINDOW_MODE_CHANGE: 'window:mode-change',
   WINDOW_SHOW_LOGIN: 'window:show-login',
+  // Command bar: renderer reports its content height so main can grow/shrink the window
+  WINDOW_SET_COMMAND_HEIGHT: 'window:set-command-height',
 
   // Activity Tracking
   ACTIVITY_GET_RECENT: 'activity:get-recent',
@@ -55,6 +57,8 @@ export const IPC_CHANNELS = {
   // System
   SYSTEM_OPEN_EXTERNAL: 'system:open-external',
   SYSTEM_GET_INFO: 'system:get-info',
+  // Interactive drag-to-select region screenshot (returns a PNG data URL)
+  SYSTEM_CAPTURE_REGION: 'system:capture-region',
   SYSTEM_CHECK_PERMISSIONS: 'system:check-permissions',
   SYSTEM_REQUEST_PERMISSION: 'system:request-permission',
   SYSTEM_RELAUNCH_APP: 'system:relaunch-app',

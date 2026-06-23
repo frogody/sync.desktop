@@ -15,11 +15,13 @@ import type { AppSettings, WidgetMode } from '../shared/types';
 
 export interface ElectronAPI {
   // Window
-  expandWindow: (mode: 'chat' | 'voice' | 'settings') => Promise<{ success: boolean }>;
+  expandWindow: (mode: 'chat' | 'voice' | 'settings' | 'command') => Promise<{ success: boolean }>;
   collapseWindow: () => Promise<{ success: boolean }>;
   showLoginWindow: () => Promise<{ success: boolean }>;
   moveWindow: (x: number, y: number) => void;
   onModeChange: (callback: (mode: WidgetMode) => void) => () => void;
+  // Command bar: tell main the content height so it can resize the window
+  setCommandHeight: (height: number) => void;
 
   // Activity
   getRecentActivity: (minutes?: number) => Promise<{
@@ -119,6 +121,12 @@ export interface ElectronAPI {
   }>;
   requestPermission: (permission: string) => Promise<{ success: boolean }>;
   relaunchApp: () => Promise<{ success: boolean }>;
+  // Interactive drag-to-select region screenshot → PNG data URL
+  captureRegion: () => Promise<{
+    success: boolean;
+    data?: { dataUrl: string; bytes: number };
+    error?: string;
+  }>;
 
   // Semantic Pipeline
   getWorkContext: () => Promise<{
@@ -205,6 +213,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on(IPC_CHANNELS.WINDOW_MODE_CHANGE, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_MODE_CHANGE, handler);
   },
+  setCommandHeight: (height) => ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_COMMAND_HEIGHT, height),
 
   // Activity
   getRecentActivity: (minutes = 10) =>
@@ -257,6 +266,7 @@ const electronAPI: ElectronAPI = {
   requestPermission: (permission) =>
     ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_REQUEST_PERMISSION, permission),
   relaunchApp: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_RELAUNCH_APP),
+  captureRegion: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_CAPTURE_REGION),
 
   // Semantic Pipeline
   getWorkContext: () =>

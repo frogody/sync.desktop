@@ -13,6 +13,8 @@ import {
   CHAT_WINDOW_SIZE,
   VOICE_WINDOW_SIZE,
   SETTINGS_WINDOW_SIZE,
+  COMMAND_WINDOW_SIZE,
+  COMMAND_WINDOW_MAX_HEIGHT,
 } from '../../shared/constants';
 import { WidgetMode } from '../../shared/types';
 
@@ -24,6 +26,9 @@ let floatingWidget: BrowserWindow | null = null;
 let currentMode: WidgetMode = 'avatar';
 // When true, the native notch widget is active and this widget stays hidden
 let nativeWidgetActive: boolean = false;
+// Remembers whether the notch widget was active before the command bar
+// temporarily took over, so we can restore it when the command bar closes.
+let commandRestoreNative: boolean = false;
 
 export function setNativeWidgetActive(active: boolean): void {
   nativeWidgetActive = active;
@@ -372,4 +377,99 @@ export function moveWidget(x: number, y: number): void {
   if (!floatingWidget) return;
 
   floatingWidget.setPosition(Math.round(x), Math.round(y));
+}
+
+// ============================================================================
+// Command Bar (Spotlight-style) — toggled by a global shortcut
+// ============================================================================
+
+/**
+ * Show the compact command bar centered in the upper third of the screen.
+ * Bypasses the nativeWidgetActive guard (like expandForLogin) so it works even
+ * when the native notch widget is running; hideCommandBar() restores the notch.
+ */
+export function expandToCommand(): void {
+  if (!floatingWidget || floatingWidget.isDestroyed()) return;
+
+  currentMode = 'command';
+  // Remember notch state so we can resume it when the bar closes
+  commandRestoreNative = nativeWidgetActive;
+  nativeWidgetActive = false;
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const width = COMMAND_WINDOW_SIZE.width;
+  const height = COMMAND_WINDOW_SIZE.height;
+  const x = Math.round((screenWidth - width) / 2);
+  const y = Math.round(screenHeight * 0.18);
+
+  floatingWidget.hide();
+  floatingWidget.setBounds({ x, y, width, height });
+  floatingWidget.webContents.send('window:mode-change', 'command');
+
+  setTimeout(() => {
+    floatingWidget?.show();
+    floatingWidget?.focus();
+  }, 60);
+}
+
+/**
+ * Grow/shrink the command window to fit its content (response / screenshot
+ * preview). Keeps it horizontally centered and clamps to a max height.
+ */
+export function setCommandWindowHeight(height: number): void {
+  if (!floatingWidget || floatingWidget.isDestroyed()) return;
+  if (currentMode !== 'command') return;
+
+  const clamped = Math.max(
+    COMMAND_WINDOW_SIZE.height,
+    Math.min(Math.round(height), COMMAND_WINDOW_MAX_HEIGHT)
+  );
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
+  const width = COMMAND_WINDOW_SIZE.width;
+  const x = Math.round((screenWidth - width) / 2);
+  const [, currentY] = floatingWidget.getPosition();
+
+  floatingWidget.setBounds({ x, y: currentY, width, height: clamped });
+}
+
+/** Hide the command bar and restore the previous state (notch widget or avatar). */
+export function hideCommandBar(): void {
+  if (!floatingWidget || floatingWidget.isDestroyed()) return;
+
+  currentMode = 'avatar';
+  floatingWidget.hide();
+  floatingWidget.webContents.send('window:mode-change', 'avatar');
+
+  if (commandRestoreNative) {
+    // The native notch widget was active before — resume it (stay hidden).
+    nativeWidgetActive = true;
+    commandRestoreNative = false;
+    return;
+  }
+
+  // No notch widget: restore the floating avatar to its top-right home.
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
+  const widgetSize = WIDGET_SIZES.medium;
+  const x = screenWidth - widgetSize.width - 20;
+  const y = 80;
+  floatingWidget.setBounds({ x, y, width: widgetSize.width, height: widgetSize.height });
+  setTimeout(() => {
+    floatingWidget?.show();
+  }, 60);
+}
+
+/** Toggle the command bar — used by the global shortcut. */
+export function toggleCommandBar(): void {
+  if (!floatingWidget || floatingWidget.isDestroyed()) return;
+
+  if (currentMode === 'command' && floatingWidget.isVisible()) {
+    hideCommandBar();
+  } else {
+    expandToCommand();
+  }
 }

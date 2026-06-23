@@ -103,7 +103,7 @@ export interface VoiceState {
 // Window & UI Types
 // ============================================================================
 
-export type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings';
+export type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings' | 'command';
 
 export interface WindowState {
   mode: WidgetMode;
@@ -136,6 +136,8 @@ export interface AppSettings {
   avatarSize: 'small' | 'medium' | 'large';
   showInDock: boolean;
   launchAtLogin: boolean;
+  // Global shortcut (Electron accelerator string) that toggles the command bar
+  commandBarShortcut: string;
 
   // Voice
   voiceEnabled: boolean;
@@ -156,6 +158,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   avatarSize: 'medium',
   showInDock: true,
   launchAtLogin: true,
+  // Keep in sync with COMMAND_BAR_SHORTCUT_DEFAULT in constants.ts
+  commandBarShortcut: 'CommandOrControl+Shift+Space',
   voiceEnabled: true,
   voiceName: 'tara',
   trackBrowserUrls: true,

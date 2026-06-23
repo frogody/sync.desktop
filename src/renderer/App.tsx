@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { SyncStateProvider } from './context/SyncStateContext';
 import FloatingAvatar from './components/FloatingAvatar';
 import ChatWidget from './components/ChatWidget';
+import CommandBar from './components/CommandBar';
 import VoiceMode from './components/VoiceMode';
 import LoginScreen from './components/LoginScreen';
 import PermissionsSetup from './components/PermissionsSetup';
@@ -15,7 +16,7 @@ import SemanticDashboard from './components/SemanticDashboard';
 import Settings from './components/Settings';
 import { WEB_APP_URL } from './config';
 
-type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings';
+type WidgetMode = 'avatar' | 'chat' | 'voice' | 'settings' | 'command';
 type AppState = 'loading' | 'login' | 'permissions' | 'authenticated';
 
 export default function App() {
@@ -106,7 +107,8 @@ export default function App() {
     // Set new timer to process clicks
     const timer = setTimeout(() => {
       if (newCount === 1) {
-        window.electron.expandWindow('chat');
+        // Chat popup is retired — single click opens the command bar
+        window.electron.expandWindow('command');
       } else if (newCount === 2) {
         window.electron.expandWindow('voice');
       } else if (newCount >= 3) {
@@ -126,7 +128,10 @@ export default function App() {
 
   // Determine container class based on mode
   const containerClass =
-    mode === 'avatar' ? 'mode-avatar' : mode === 'chat' ? 'mode-chat' : 'mode-voice';
+    mode === 'avatar' ? 'mode-avatar'
+    : mode === 'voice' ? 'mode-voice'
+    : mode === 'command' ? 'mode-command'
+    : 'mode-chat';
 
   // Debug: Log mode changes
   useEffect(() => {
@@ -170,6 +175,8 @@ export default function App() {
             <FloatingAvatar onClick={handleAvatarClick} />
           </div>
         )}
+
+        {mode === 'command' && <CommandBar />}
 
         {mode === 'chat' && !showDashboard && (
           <ChatWidget onClose={handleClose} onDashboard={() => setShowDashboard(true)} />

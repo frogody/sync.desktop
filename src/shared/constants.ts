@@ -45,6 +45,19 @@ export const SETTINGS_WINDOW_SIZE = {
   height: 480,
 };
 
+// Spotlight-style command bar. Starts as just the input row and grows
+// (up to COMMAND_WINDOW_MAX_HEIGHT) when a response or screenshot preview shows.
+export const COMMAND_WINDOW_SIZE = {
+  width: 680,
+  height: 88,
+};
+export const COMMAND_WINDOW_MAX_HEIGHT = 560;
+
+// Default global shortcut that toggles the command bar. Configurable in Settings.
+// A safer default than Shift+Backspace (which would swallow "delete" system-wide);
+// users can rebind it — including to 'Shift+Backspace' — in Settings.
+export const COMMAND_BAR_SHORTCUT_DEFAULT = 'CommandOrControl+Shift+Space';
+
 // ============================================================================
 // Activity Tracking Configuration
 // ============================================================================

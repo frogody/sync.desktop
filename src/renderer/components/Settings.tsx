@@ -162,6 +162,10 @@ export default function Settings({ onClose }: SettingsProps) {
               value={settings.showInDock}
               onChange={v => update('showInDock', v)}
             />
+            <ShortcutRecorder
+              value={settings.commandBarShortcut || 'CommandOrControl+Shift+Space'}
+              onChange={v => update('commandBarShortcut', v)}
+            />
             <Select
               label="Data Retention"
               description="How long to keep local activity data"
@@ -352,5 +356,63 @@ function ExternalLink({ label, url }: { label: string; url: string }) {
     >
       {label} ↗
     </button>
+  );
+}
+
+// Pretty-print an Electron accelerator for display (e.g. ⌘⇧Space).
+function formatAccelerator(accel: string): string {
+  return accel
+    .replace(/CommandOrControl/g, '⌘')
+    .replace(/Command/g, '⌘')
+    .replace(/Control/g, '⌃')
+    .replace(/Option/g, '⌥')
+    .replace(/Alt/g, '⌥')
+    .replace(/Shift/g, '⇧')
+    .replace(/\+/g, '');
+}
+
+// Records a new global shortcut chord. Requires at least one modifier so we
+// never bind a bare key globally. Esc cancels.
+function ShortcutRecorder({ value, onChange }: { value: string; onChange: (accel: string) => void }) {
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = e.key;
+      if (key === 'Escape') { setRecording(false); return; }
+      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(key)) return; // wait for a real key
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) return; // require a modifier
+      const parts: string[] = [];
+      if (e.metaKey) parts.push('CommandOrControl');
+      else if (e.ctrlKey) parts.push('Control');
+      if (e.altKey) parts.push('Alt');
+      if (e.shiftKey) parts.push('Shift');
+      let k = key;
+      if (key === ' ') k = 'Space';
+      else if (key.length === 1) k = key.toUpperCase();
+      parts.push(k);
+      onChange(parts.join('+'));
+      setRecording(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [recording, onChange]);
+
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="pr-3">
+        <div className="text-sm text-white/90">Command Bar Shortcut</div>
+        <div className="text-xs text-white/50">Global hotkey to open the SYNC command bar</div>
+      </div>
+      <button
+        onClick={() => setRecording((r) => !r)}
+        className="px-3 py-1.5 rounded-lg text-sm border border-white/15 text-white/80 hover:bg-white/10 transition-colors min-w-[110px] text-center"
+      >
+        {recording ? 'Press keys…' : formatAccelerator(value)}
+      </button>
+    </div>
   );
 }

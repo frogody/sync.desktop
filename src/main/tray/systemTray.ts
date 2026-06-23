@@ -10,7 +10,7 @@ import path from 'path';
 import {
   getFloatingWidget,
   toggleWidget,
-  expandToChat,
+  expandToCommand,
   expandToVoice,
   expandToSettings,
   collapseToAvatar,
@@ -111,14 +111,10 @@ export function updateTrayMenu(): void {
     },
     { type: 'separator' },
     {
-      label: 'Open Chat',
+      label: 'Open Command Bar',
       accelerator: 'CommandOrControl+Shift+S',
       click: () => {
-        const widget = getFloatingWidget();
-        if (widget) {
-          widget.show();
-          expandToChat();
-        }
+        expandToCommand();
       },
     },
     {

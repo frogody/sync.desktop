@@ -16,7 +16,13 @@ import {
   collapseToAvatar,
   moveWidget,
   expandForLogin,
+  expandToCommand,
+  hideCommandBar,
+  setCommandWindowHeight,
+  getCurrentMode,
 } from '../windows/floatingWidget';
+import { captureRegion } from '../services/regionCapture';
+import { registerCommandShortcut } from '../shortcuts';
 import { ActivityTracker } from '../services/activityTracker';
 import {
   getContextManager,
@@ -126,10 +132,10 @@ export function setupIpcHandlers(
   // Window Management
   // ============================================================================
 
-  ipcMain.handle(IPC_CHANNELS.WINDOW_EXPAND, (_event, mode: 'chat' | 'voice' | 'settings') => {
+  ipcMain.handle(IPC_CHANNELS.WINDOW_EXPAND, (_event, mode: 'chat' | 'voice' | 'settings' | 'command') => {
     // SEC-006: Validate mode parameter
-    if (mode !== 'chat' && mode !== 'voice' && mode !== 'settings') {
-      return { success: false, error: 'Invalid mode. Must be "chat", "voice", or "settings".' };
+    if (mode !== 'chat' && mode !== 'voice' && mode !== 'settings' && mode !== 'command') {
+      return { success: false, error: 'Invalid mode. Must be "chat", "voice", "settings", or "command".' };
     }
     if (mode === 'chat') {
       expandToChat();
@@ -137,8 +143,41 @@ export function setupIpcHandlers(
       expandToVoice();
     } else if (mode === 'settings') {
       expandToSettings();
+    } else if (mode === 'command') {
+      expandToCommand();
     }
     return { success: true };
+  });
+
+  // Command bar: renderer asks main to resize the window to fit its content
+  ipcMain.on(IPC_CHANNELS.WINDOW_SET_COMMAND_HEIGHT, (_event, height: number) => {
+    if (typeof height === 'number' && Number.isFinite(height)) {
+      setCommandWindowHeight(height);
+    }
+  });
+
+  // Interactive drag-to-select region screenshot. Hides the command bar during
+  // selection so it doesn't cover the target, then restores it.
+  ipcMain.handle(IPC_CHANNELS.SYSTEM_CAPTURE_REGION, async () => {
+    try {
+      const widget = getFloatingWidget();
+      const wasVisible = !!widget && widget.isVisible();
+      if (widget && wasVisible) widget.hide();
+
+      const result = await captureRegion();
+
+      if (widget && wasVisible) {
+        widget.show();
+        widget.focus();
+      }
+
+      if (!result) {
+        return { success: false, error: 'cancelled' };
+      }
+      return { success: true, data: { dataUrl: result.dataUrl, bytes: result.bytes } };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
   });
 
   // Show the Electron window for login, overriding the native notch widget if active.
@@ -149,7 +188,12 @@ export function setupIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_COLLAPSE, () => {
-    collapseToAvatar();
+    // The command bar restores the notch widget / avatar via its own path
+    if (getCurrentMode() === 'command') {
+      hideCommandBar();
+    } else {
+      collapseToAvatar();
+    }
     return { success: true };
   });
 
@@ -417,6 +461,9 @@ export function setupIpcHandlers(
       // Apply side-effects for settings that affect OS behavior
       if ('launchAtLogin' in updates) {
         app.setLoginItemSettings({ openAtLogin: !!updates.launchAtLogin });
+      }
+      if ('commandBarShortcut' in updates) {
+        registerCommandShortcut(newSettings.commandBarShortcut);
       }
       if ('showInDock' in updates) {
         if (updates.showInDock) {
