@@ -1,3 +1,21 @@
+# Build, sign, notarize and attach the macOS app to a GitHub Release.
+#
+# Triggers: publishing a Release (recommended) or a manual run.
+#
+# Required repository secrets for SIGNED + NOTARIZED builds (Settings → Secrets
+# and variables → Actions). Without the signing secrets the job still runs and
+# validates the build, but skips packaging (see the "signing secrets not set"
+# notice step):
+#   APPLE_P12_BASE64            base64 of the Developer ID Application .p12
+#   P12_PASSWORD               password for that .p12
+#   KEYCHAIN_PASSWORD          any password used for the temporary build keychain
+#   MAC_SIGNING_IDENTITY       e.g. "Developer ID Application: Your Name (TEAMID)"
+#   APPLE_TEAM_ID              your Apple Developer Team ID
+#   # Notarization (App Store Connect API key):
+#   APPLE_API_KEY_PRIVATE_BASE64  base64 of the AuthKey_XXXX.p8
+#   APPLE_API_KEY_ID              the key id (XXXX)
+#   APPLE_API_KEY_ISSUER_ID       the issuer id (UUID)
+
 name: Build & Package macOS
 
 on:
@@ -5,12 +23,19 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   build-macos:
     name: Build macOS artifacts
     runs-on: macos-latest
     env:
       NODE_ENV: production
+      # The `secrets` context cannot be used in `if:` conditions, so surface the
+      # presence of the credentials as plain env flags ('true'/'false') here.
+      HAS_SIGNING: ${{ secrets.APPLE_P12_BASE64 != '' && secrets.MAC_SIGNING_IDENTITY != '' }}
+      HAS_NOTARIZE: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 != '' }}
 
     steps:
       - name: Checkout repository
@@ -30,8 +55,13 @@ jobs:
           npm run build:main
           npm run build:renderer
 
-      - name: Import macOS signing identity into temporary keychain (optional)
-        if: ${{ secrets.APPLE_P12_BASE64 != '' }}
+      - name: Signing secrets not set — skipping package
+        if: env.HAS_SIGNING != 'true'
+        run: |
+          echo "::warning title=macOS packaging skipped::Apple signing secrets are not configured, so the signed/notarized .dmg was not built. Add the secrets listed at the top of build-macos.yml to enable releases."
+
+      - name: Import macOS signing identity into temporary keychain
+        if: env.HAS_SIGNING == 'true'
         run: |
           set -euo pipefail
           TMP_P12="/tmp/codesign.p12"
@@ -49,57 +79,47 @@ jobs:
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
-      - name: Reconstruct App Store Connect API key for notarization (optional)
-        if: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 != '' }}
+      - name: Reconstruct App Store Connect API key for notarization
+        if: env.HAS_NOTARIZE == 'true'
         run: |
           set -euo pipefail
           API_KEY_PATH="/tmp/AuthKey_${APPLE_API_KEY_ID}.p8"
           echo "$APPLE_API_KEY_PRIVATE_BASE64" | base64 --decode > "$API_KEY_PATH"
           chmod 600 "$API_KEY_PATH"
-          echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
+          echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> "$GITHUB_ENV"
         env:
           APPLE_API_KEY_PRIVATE_BASE64: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
 
-      - name: Package macOS app
+      - name: Package macOS app (sign + notarize)
+        if: env.HAS_SIGNING == 'true'
         run: npm run package:mac
         env:
           MAC_SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           DEBUG_CODESIGN: ${{ secrets.DEBUG_CODESIGN }}
-
-      - name: Notarize macOS artifacts (optional)
-        if: ${{ secrets.APPLE_API_KEY_PRIVATE_BASE64 != '' }}
-        run: node scripts/notarize.js
-        env:
+          # electron-builder's built-in notarizer picks these up (App Store Connect API key)
+          APPLE_API_KEY: ${{ env.APPLE_API_KEY_PATH }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_KEY_ISSUER_ID: ${{ secrets.APPLE_API_KEY_ISSUER_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER_ID }}
 
-      - name: Upload macOS artifacts (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload artifacts (workflow_dispatch)
+        if: ${{ github.event_name == 'workflow_dispatch' && env.HAS_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: mac-artifacts-${{ github.sha }}
-          path: release/*.{dmg,pkg,zip}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest-mac.yml
 
-      - name: Upload .dmg to Release
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach artifacts to Release
+        if: ${{ github.event_name == 'release' && env.HAS_SIGNING == 'true' }}
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: release/*.dmg
-          asset_name: SYNC.Desktop-${{ github.event.release.tag_name }}.dmg
-          asset_content_type: application/x-apple-diskimage
-
-      - name: Upload .pkg to Release
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: release/*.pkg
-          asset_name: SYNC.Desktop-${{ github.event.release.tag_name }}.pkg
-          asset_content_type: application/x-newton-compatible-pkg
+          files: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest-mac.yml
