@@ -50,6 +50,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # node-gyp (used by better-sqlite3's postinstall rebuild) imports
+      # `distutils`, which was removed from Python 3.12+. macOS runners now ship
+      # Python 3.13/3.14, so pin 3.11 (which still bundles distutils).
+      - name: Setup Python 3.11 (node-gyp needs distutils)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
         run: npm ci
 
