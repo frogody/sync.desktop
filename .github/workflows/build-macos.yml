@@ -31,7 +31,10 @@ jobs:
     name: Build macOS artifacts
     runs-on: macos-latest
     env:
-      NODE_ENV: production
+      # NOTE: do NOT set NODE_ENV=production here — it makes `npm ci` omit
+      # devDependencies (electron, vite, tsc), which breaks the better-sqlite3
+      # postinstall rebuild and the build steps.
+      #
       # The `secrets` context cannot be used in `if:` conditions, so surface the
       # presence of the credentials as plain env flags ('true'/'false') here.
       HAS_SIGNING: ${{ secrets.APPLE_P12_BASE64 != '' && secrets.MAC_SIGNING_IDENTITY != '' }}
