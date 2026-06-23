@@ -41,6 +41,10 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+# Compiled JS/maps accidentally emitted into the TS source tree
+# (real sources are .ts/.tsx; build output belongs in dist/)
+src/**/*.js
+src/**/*.js.map
 
 # Swift build artifacts
 native/SYNCWidget/.build/
