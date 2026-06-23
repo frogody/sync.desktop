@@ -158,6 +158,12 @@ export async function createFloatingWidget(): Promise<BrowserWindow> {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      // sandbox is intentionally false: the preload is compiled by tsc
+      // (unbundled), so it `require()`s relative ../shared/* modules. A
+      // sandboxed preload can only require `electron` and Node built-ins, so
+      // enabling sandbox would break the preload and `window.electron`.
+      // To turn this on, first bundle the preload into a single self-contained
+      // file (e.g. esbuild/vite) and verify IPC end-to-end in a packaged build.
       sandbox: false,
     },
     // Round corners for a softer look
